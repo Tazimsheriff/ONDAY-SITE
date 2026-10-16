@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+:root {
+  --cream: #feeec3;
+  --paper: #fefcf5;
+  --ink: #0a0a0a;
+  --yellow: #ffd966;
+  --mint: #7bf5a0;
+  --mint-card: #d2ffb6;
+  --sky: #b6eaff;
+  --lilac: #e3b6ff;
+  --violet: #9191ff;
+  --peach: #ffc0b6;
+}
+
+@theme inline {
+  --font-sans: var(--font-dm), "DM Sans", sans-serif;
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", sans-serif;
+  --color-cream: #feeec3;
+  --color-paper: #fefcf5;
+  --color-ink: #0a0a0a;
+  --color-yellow: #ffd966;
+  --color-mint: #7bf5a0;
+  --color-mintcard: #d2ffb6;
+  --color-sky: #b6eaff;
+  --color-lilac: #e3b6ff;
+  --color-violet: #9191ff;
+  --color-peach: #ffc0b6;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: var(--cream);
+    color: var(--ink);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+::selection {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.field {
+  width: 100%;
+  border: 1.6px solid var(--ink);
+  background: var(--paper);
+  padding: 0.8rem 0.9rem;
+  outline: none;
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.field:focus {
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.press {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.press:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.press:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--ink);
+}
+
+.ticker {
+  display: flex;
+  width: max-content;
+  animation: ticker 32s linear infinite;
+}
+
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .ticker {
+    animation: none;
+  }
+  .press {
+    transition: none;
+  }
+}

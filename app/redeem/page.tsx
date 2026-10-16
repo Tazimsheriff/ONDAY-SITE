@@ -1,0 +1,77 @@
+import { redirect } from "next/navigation";
+import { Card, Flash, btn } from "@/components/ui";
+import { redeem } from "@/lib/actions";
+import { requireUser } from "@/lib/auth";
+import { listGoodies, listRedemptions } from "@/lib/db";
+
+export const metadata = { title: "Dollars" };
+
+export default async function RedeemPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; notice?: string }>;
+}) {
+  const user = await requireUser();
+  if (user.role !== "user") redirect("/admin");
+  const flash = await searchParams;
+  const goodies = listGoodies();
+  const mine = listRedemptions(user.id).filter((item) => item.status === "claimed");
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <p className="text-xs font-bold uppercase tracking-[0.18em]">Sapien Dollars</p>
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+        <h1 className="font-display text-5xl font-extrabold tracking-tight sm:text-6xl">Spend them before they&apos;re gone.</h1>
+        <p className="border-[1.6px] border-ink bg-sky px-4 py-3 font-display text-4xl font-extrabold shadow-[4px_4px_0_#0a0a0a]">
+          S${user.dollars}
+        </p>
+      </div>
+      <div className="mt-4 max-w-xl">
+        <Flash error={flash.error} notice={flash.notice} />
+      </div>
+
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {goodies.map((goodie) => {
+          const affordable = user.dollars >= goodie.cost;
+          const available = goodie.stock > 0;
+          return (
+            <Card key={goodie.id} color={available ? "#fefcf5" : "#ffc0b6"} className="flex flex-col">
+              <p className="text-xs font-bold uppercase tracking-[0.16em]">{available ? `${goodie.stock} left` : "Gone"}</p>
+              <h2 className="mt-2 font-display text-3xl font-extrabold leading-none">{goodie.name}</h2>
+              <p className="mt-2 flex-1 text-sm leading-relaxed">{goodie.description}</p>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="font-display text-3xl font-extrabold">S${goodie.cost}</span>
+                {available ? (
+                  <form action={redeem}>
+                    <input type="hidden" name="goodieId" value={goodie.id} />
+                    <button className={btn(affordable ? "ink" : "paper")} type="submit">
+                      {affordable ? "Redeem" : "Too pricey"}
+                    </button>
+                  </form>
+                ) : (
+                  <span className="text-sm font-bold">Out of stock</span>
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <section className="mt-10">
+        <h2 className="font-display text-3xl font-extrabold">Your claims</h2>
+        {mine.length ? (
+          <ul className="mt-4 divide-y-[1.6px] divide-ink border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
+            {mine.map((item) => (
+              <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="font-bold">{item.goodie_name}</span>
+                <span className="text-sm">S${item.cost} · show this at the counter</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm">Nothing redeemed yet.</p>
+        )}
+      </section>
+    </div>
+  );
+}
