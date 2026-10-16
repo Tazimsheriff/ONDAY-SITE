@@ -101,9 +101,10 @@ export default async function StudentsPage({
 
         <form action={createWalkIn} className="border-[1.6px] border-ink bg-lilac p-4 shadow-[4px_4px_0_#0a0a0a]">
           <h2 className="font-display text-2xl font-extrabold">Walk-in</h2>
-          <p className="mt-1 text-sm">Someone who wasn&apos;t on the Luma sheet. Their password is the phone you type.</p>
+          <p className="mt-1 text-sm">Someone who wasn&apos;t on the Luma sheet. Set their name, phone, and a password (8+ chars). The phone is their account identifier; the password is their secret.</p>
           <input name="name" required className="field mt-3" placeholder="Full name" />
           <input name="phone" required className="field mt-2" placeholder="Phone number" />
+          <input name="password" required className="field mt-2" placeholder="Password (8+ chars)" />
           <input name="college" className="field mt-2" placeholder="College" />
           <button className={`${btn("ink")} mt-3`} type="submit">Add them</button>
         </form>
@@ -131,7 +132,7 @@ export default async function StudentsPage({
                   <p className="mt-1 max-w-[220px] text-xs">{[student.college, student.year].filter(Boolean).join(" · ")}</p>
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em]">{statusLabel(student.approval_status)}</p>
                 </td>
-                <td className="px-3 py-3 font-mono text-xs">{student.phone_key ? formatPhone(student.phone_key) : "No phone"}</td>
+                <td className="px-3 py-3 font-mono text-xs">Contact on file</td>
                 <td className="px-3 py-3">
                   <TeamSelect userId={student.id} teamId={student.team_id} teams={teams} returnTo={returnTo} />
                 </td>

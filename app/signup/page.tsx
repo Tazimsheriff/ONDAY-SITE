@@ -25,7 +25,7 @@ export default async function SignupPage({
           Make a desk.
         </h1>
         <p className="mt-4 max-w-md text-lg leading-relaxed">
-          Pick a name and a 10-digit phone number. That phone number is the password. You can log in with it again later.
+          Pick a name, a 10-digit phone number, and a password (at least 8 characters). The phone number is your account identifier; the password is your secret. You can log in with them again later.
         </p>
         <div className="mt-6 max-w-md border-[1.6px] border-ink bg-yellow p-4 shadow-[4px_4px_0_#0a0a0a]">
           <p className="text-xs font-bold uppercase tracking-[0.16em]">Already made demo</p>
@@ -50,6 +50,10 @@ export default async function SignupPage({
         <label className="mt-4 block text-sm font-bold" htmlFor="college">
           College
           <input id="college" name="college" className="field mt-2 font-medium" placeholder="Optional" />
+        </label>
+        <label className="mt-4 block text-sm font-bold" htmlFor="password">
+          Password
+          <input id="password" name="password" type="password" autoComplete="new-password" required className="field mt-2 font-medium" placeholder="At least 8 characters" />
         </label>
         <button className={`${btn("ink")} mt-5 w-full`} type="submit">
           Create my desk

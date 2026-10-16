@@ -2,22 +2,32 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Eyebrow, btn } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
-import { areConnected, getUserBySlug, recordConnection } from "@/lib/db";
+import { connectWithUser } from "@/lib/actions";
+import { areConnected, getUserBySlug } from "@/lib/db";
 import { discordHandle, hrefFor, parseSignals, teamColor } from "@/lib/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const user = getUserBySlug(slug);
+  let user;
+  try {
+    user = getUserBySlug(slug);
+  } catch {
+    user = null;
+  }
   return { title: user ? user.name : "Card" };
 }
 
 export default async function CardPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const user = getUserBySlug(slug);
+  let user;
+  try {
+    user = getUserBySlug(slug);
+  } catch {
+    user = null;
+  }
   if (!user) notFound();
   const viewer = await getSessionUser();
   const mine = viewer?.id === user.id;
-  if (viewer?.role === "user" && !mine) recordConnection(viewer.id, user.id);
   const connected = Boolean(viewer && !mine && viewer.role === "user" && areConnected(viewer.id, user.id));
   const color = teamColor(user.team_color || "butter");
   const signals = parseSignals(user.signals);
@@ -47,6 +57,16 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
             <p className="mt-4 border-[1.6px] border-ink bg-mint px-3 py-2 text-sm font-bold">
               You&apos;re connected with {user.name}.
             </p>
+          ) : null}
+
+          {!mine && viewer?.role === "user" && !connected ? (
+            <form action={connectWithUser} className="mt-4">
+              <input type="hidden" name="targetId" value={user.id} />
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <button className={btn("ink")} type="submit">
+                Connect with {user.name}
+              </button>
+            </form>
           ) : null}
 
           <div className="mt-6 grid gap-2">

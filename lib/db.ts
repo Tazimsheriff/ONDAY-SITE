@@ -1,12 +1,49 @@
 import fs from "fs";
 import path from "path";
-import { randomUUID } from "crypto";
+import { randomUUID, scryptSync, timingSafeEqual } from "crypto";
 import { DatabaseSync } from "node:sqlite";
 import { cleanName, normName, phoneKey } from "./format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
 const globalForDb = globalThis as unknown as { eventDb?: DatabaseSync };
+
+const SALT_BYTES = 16;
+const KEY_BYTES = 32;
+
+export function hashPassword(password: string): string {
+  const randomSalt = scryptSync(randomUUID(), "salt-seed", SALT_BYTES);
+  const derived = scryptSync(password, randomSalt, KEY_BYTES);
+  return `${randomSalt.toString("hex")}:${derived.toString("hex")}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  const [saltHex, hashHex] = stored.split(":");
+  if (!saltHex || !hashHex) return false;
+  try {
+    const salt = Buffer.from(saltHex, "hex");
+    const expected = Buffer.from(hashHex, "hex");
+    const derived = scryptSync(password, salt, KEY_BYTES);
+    return derived.length === expected.length && timingSafeEqual(derived, expected);
+  } catch {
+    return false;
+  }
+}
+
+// Simple in-memory login rate limiter (per identifier, 15-minute window).
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function checkLoginRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const record = loginAttempts.get(identifier);
+  if (!record || now > record.resetAt) {
+    loginAttempts.set(identifier, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (record.count >= 10) return false;
+  record.count += 1;
+  return true;
+}
 
 export type UserRow = {
   id: string;
@@ -16,6 +53,8 @@ export type UserRow = {
   email: string;
   phone: string;
   phone_key: string;
+  password_hash: string | null;
+  session_version: number;
   college: string;
   year: string;
   occupation: string;
@@ -67,6 +106,7 @@ export type RedemptionRow = {
   goodie_id: string;
   goodie_name: string;
   cost: number;
+  quantity: number;
   status: string;
   created_at: string;
   user_name?: string;
@@ -106,6 +146,8 @@ function createSchema(db: DatabaseSync) {
       email TEXT NOT NULL DEFAULT '',
       phone TEXT NOT NULL DEFAULT '',
       phone_key TEXT NOT NULL DEFAULT '',
+      password_hash TEXT NOT NULL DEFAULT '',
+      session_version INTEGER NOT NULL DEFAULT 0,
       college TEXT NOT NULL DEFAULT '',
       year TEXT NOT NULL DEFAULT '',
       occupation TEXT NOT NULL DEFAULT '',
@@ -144,6 +186,7 @@ function createSchema(db: DatabaseSync) {
       goodie_id TEXT NOT NULL,
       goodie_name TEXT NOT NULL,
       cost INTEGER NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'claimed',
       created_at TEXT NOT NULL
     );
@@ -271,17 +314,23 @@ function seed(db: DatabaseSync) {
       insertGoodie.run(randomUUID(), name, description, cost, stock);
     }
 
-    const adminPassword = (process.env.ADMIN_PASSWORD || "campus101").trim();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+    if (!adminPassword) {
+      throw new Error(
+        "ADMIN_PASSWORD must be configured before initial seeding. Set the ADMIN_PASSWORD environment variable.",
+      );
+    }
+    const adminPasswordHash = hashPassword(adminPassword);
     db.prepare(`
       INSERT INTO users (
-        id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+        id, guest_id, name, name_key, email, phone, phone_key, password_hash, session_version, college, year, occupation,
         role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
         portfolio, bio, slug, approval_status, heard_from, signals, created_at
       ) VALUES (
-        'admin', NULL, 'Sapiens Admin', 'sapiens admin', '', ?, ?, 'CodeSapiens', '', 'Organizer',
+        'admin', NULL, 'Sapiens Admin', 'sapiens admin', '', ?, ?, ?, 0, 'CodeSapiens', '', 'Organizer',
         'admin', 0, 0, NULL, '', '', '', '', '', '', '', 'admin', 'approved', '', '[]', ?
       )
-    `).run(adminPassword, adminPassword.toLowerCase(), now);
+    `).run(adminPassword, adminPassword.toLowerCase(), adminPasswordHash, now);
 
     const csvPath = path.join(DATA_DIR, "guests.csv");
     if (fs.existsSync(csvPath)) {
@@ -329,25 +378,38 @@ function seed(db: DatabaseSync) {
 }
 
 function ensureDemo(db: DatabaseSync) {
+  if (process.env.NODE_ENV === "production" && process.env.ENABLE_DEMO !== "true") return;
   const existing = db.prepare("SELECT id FROM users WHERE id = 'demo'").get();
   if (existing) return;
   const phone = "9000000001";
+  const passwordHash = hashPassword(phone);
   db.prepare(
     `INSERT INTO users (
-      id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+      id, guest_id, name, name_key, email, phone, phone_key, password_hash, session_version, college, year, occupation,
       role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
       portfolio, bio, slug, approval_status, heard_from, signals, created_at
     ) VALUES (
-      'demo', NULL, 'Demo Sapien', 'demo sapien', '', ?, ?, 'Sapiens Campus', 'First Year', 'Student',
+      'demo', NULL, 'Demo Sapien', 'demo sapien', '', ?, ?, ?, 0, 'Sapiens Campus', 'First Year', 'Student',
       'user', 0, 0, NULL, '', '', '', '', '', '', '', 'demo', 'demo', '', '[]', ?
     )`,
-  ).run(phone, phone, new Date().toISOString());
+  ).run(phone, phoneKey(phone), passwordHash, new Date().toISOString());
 }
 
 function ensureColumns(db: DatabaseSync) {
   const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
-  if (!columns.some((column) => column.name === "discord")) {
-    db.exec("ALTER TABLE users ADD COLUMN discord TEXT NOT NULL DEFAULT ''");
+  for (const column of ["discord", "password_hash", "session_version"]) {
+    if (!columns.some((c) => c.name === column)) {
+      db.exec(
+        `ALTER TABLE users ADD COLUMN ${column} ${column === "session_version" ? "INTEGER NOT NULL DEFAULT 0" : "TEXT NOT NULL DEFAULT ''"}`,
+      );
+    }
+  }
+  if (!columns.some((c) => c.name === "quantity")) {
+    // quantity lives on redemptions, not users; ensure that table column too
+    const redeemCols = db.prepare("PRAGMA table_info(redemptions)").all() as { name: string }[];
+    if (!redeemCols.some((c) => c.name === "quantity")) {
+      db.exec("ALTER TABLE redemptions ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+    }
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS connections (
@@ -371,6 +433,7 @@ export function getDb(): DatabaseSync {
   if (!globalForDb.eventDb) {
     const db = new DatabaseSync(resolveDbPath());
     createSchema(db);
+    ensureColumns(db);
     seed(db);
     globalForDb.eventDb = db;
   }
@@ -403,16 +466,18 @@ export function getUserBySlug(slug: string): UserRow | null {
   return row ?? null;
 }
 
-export function findLogin(name: string, secret: string): UserRow | null {
+export function findLogin(name: string, password: string): UserRow | null {
+  const identifier = `${name.toLowerCase().trim()}|${password.slice(0, 4)}`;
+  if (!checkLoginRateLimit(identifier)) return null;
+
   const typed = normName(name);
-  const key = phoneKey(secret);
-  if (typed.length < 2 || !key) return null;
+  if (typed.length < 2 || !password) return null;
 
   const rows = getDb()
-    .prepare("SELECT * FROM users WHERE phone_key = ?")
-    .all(key) as UserRow[];
+    .prepare("SELECT * FROM users")
+    .all() as UserRow[];
 
-  const matches = rows.filter((user) => {
+  const candidates = rows.filter((user) => {
     if (user.role === "admin") {
       return typed === "admin" || typed === user.name_key;
     }
@@ -420,7 +485,13 @@ export function findLogin(name: string, secret: string): UserRow | null {
     return user.name_key.split(" ").includes(typed) && typed.length >= 3;
   });
 
-  return matches.length === 1 ? matches[0] : null;
+  for (const user of candidates) {
+    if (user.password_hash && verifyPassword(password, user.password_hash)) {
+      return user;
+    }
+  }
+
+  return null;
 }
 
 export function listStudents(): UserRow[] {

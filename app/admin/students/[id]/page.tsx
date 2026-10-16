@@ -25,7 +25,7 @@ export default async function StudentEditPage({
     <div className="mx-auto max-w-3xl px-4 py-8">
       <Link className="text-sm font-bold underline" href="/admin/students">All Sapiens</Link>
       <h1 className="mt-3 font-display text-5xl font-extrabold tracking-tight">{user.name}</h1>
-      <p className="mt-2 font-mono text-sm">Login password · {user.phone_key ? formatPhone(user.phone_key) : "No phone on file"}</p>
+      <p className="mt-2 font-mono text-sm">Account on file</p>
       <p className="mt-1 text-sm">{[user.email, user.college, user.year, user.approval_status].filter(Boolean).join(" · ")}</p>
       <div className="mt-4">
         <Flash error={flash.error} notice={flash.notice} />

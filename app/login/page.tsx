@@ -47,6 +47,18 @@ export default async function LoginPage({
           className="field mt-2"
           placeholder="Your Luma phone number"
         />
+        <label className="mt-4 block text-sm font-bold" htmlFor="password">
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          required
+          className="field mt-2"
+          placeholder="Your account password"
+        />
         <button className={`${btn("ink")} mt-5 w-full`} type="submit">
           Open my desk
         </button>
@@ -54,7 +66,7 @@ export default async function LoginPage({
           No Luma registration? <Link className="font-bold underline" href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}>Sign up.</Link>
         </p>
         <p className="mt-2 text-sm">
-          Demo desk: name <span className="font-bold">Demo Sapien</span>, phone <span className="font-bold">9000000001</span>.
+          Demo desk: name <span className="font-bold">Demo Sapien</span>, phone <span className="font-bold">9000000001</span>, password <span className="font-bold">9000000001</span>.
         </p>
       </form>
     </div>

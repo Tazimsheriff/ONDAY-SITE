@@ -8,6 +8,7 @@ import {
   findLogin,
   getDb,
   getUserById,
+  hashPassword,
   writeLedger,
   type UserRow,
 } from "./db";
@@ -25,7 +26,7 @@ function touch() {
 }
 
 export async function login(formData: FormData) {
-  const user = findLogin(String(formData.get("name") || ""), String(formData.get("phone") || ""));
+  const user = findLogin(String(formData.get("name") || ""), String(formData.get("password") || ""));
   if (!user) redirect("/login?error=mismatch");
   await setSession(user.id);
   const next = safeReturn(formData.get("next"), "");
@@ -40,23 +41,25 @@ export async function logout() {
 export async function signup(formData: FormData) {
   const name = cleanName(String(formData.get("name") || ""));
   const phone = String(formData.get("phone") || "");
+  const password = String(formData.get("password") || "");
   const college = clampText(String(formData.get("college") || ""), 120);
   const key = phoneKey(phone);
-  if (name.length < 2 || !/^\d{10}$/.test(key)) redirect("/signup?error=invalid");
+  if (name.length < 2 || !/^\d{10}$/.test(key) || password.length < 8) redirect("/signup?error=invalid");
 
   const existing = getDb().prepare("SELECT id FROM users WHERE phone_key = ?").get(key);
   if (existing) redirect("/signup?error=duplicate");
 
   const id = `signup-${randomUUID().slice(0, 8)}`;
+  const password_hash = hashPassword(password);
   getDb()
     .prepare(
       `INSERT INTO users (
-        id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+        id, guest_id, name, name_key, email, phone, phone_key, password_hash, session_version, college, year, occupation,
         role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
         portfolio, bio, slug, approval_status, heard_from, signals, created_at
-      ) VALUES (?, NULL, ?, ?, '', ?, ?, ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'signed-up', '', '[]', ?)`,
+      ) VALUES (?, NULL, ?, ?, '', ?, ?, ?, 0, ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'signed-up', '', '[]', ?)`,
     )
-    .run(id, name, normName(name), phone.trim(), key, college, id, new Date().toISOString());
+    .run(id, name, normName(name), phone.trim(), key, password_hash, college, id, new Date().toISOString());
 
   await setSession(id);
   redirect(safeReturn(formData.get("next"), "") || "/dashboard");
@@ -93,9 +96,10 @@ export async function redeem(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "user") redirect("/admin");
   const goodieId = String(formData.get("goodieId") || "");
+  const quantity = Math.max(1, integer(formData.get("quantity"), 1));
   const db = getDb();
   let failure: "stock" | "broke" | null = null;
-  let redeemed: { name: string; cost: number } | null = null;
+  let redeemed: { name: string; cost: number; quantity: number } | null = null;
 
   db.exec("BEGIN");
   try {
@@ -105,23 +109,32 @@ export async function redeem(formData: FormData) {
     const current = db.prepare("SELECT dollars FROM users WHERE id = ?").get(user.id) as
       | { dollars: number }
       | undefined;
+    const totalCost = goodie ? goodie.cost * quantity : 0;
 
-    if (!goodie || !current || goodie.stock < 1) failure = "stock";
-    else if (current.dollars < goodie.cost) failure = "broke";
+    if (!goodie || !current || goodie.stock < quantity) failure = "stock";
+    else if (current.dollars < totalCost) failure = "broke";
     else {
       const spent = db
         .prepare("UPDATE users SET dollars = dollars - ? WHERE id = ? AND dollars >= ?")
-        .run(goodie.cost, user.id, goodie.cost);
+        .run(totalCost, user.id, totalCost);
       const taken = db
-        .prepare("UPDATE goodies SET stock = stock - 1 WHERE id = ? AND stock > 0")
-        .run(goodie.id);
+        .prepare("UPDATE goodies SET stock = stock - ? WHERE id = ? AND stock >= ?")
+        .run(quantity, goodie.id, quantity);
       if (!spent.changes || !taken.changes) failure = "stock";
       else {
         db.prepare(
-          `INSERT INTO redemptions (id, user_id, goodie_id, goodie_name, cost, status, created_at)
-           VALUES (?, ?, ?, ?, ?, 'claimed', ?)`,
-        ).run(randomUUID(), user.id, goodie.id, goodie.name, goodie.cost, new Date().toISOString());
-        redeemed = { name: goodie.name, cost: goodie.cost };
+          `INSERT INTO redemptions (id, user_id, goodie_id, goodie_name, cost, quantity, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'claimed', ?)`,
+        ).run(
+          randomUUID(),
+          user.id,
+          goodie.id,
+          goodie.name,
+          goodie.cost,
+          quantity,
+          new Date().toISOString(),
+        );
+        redeemed = { name: goodie.name, cost: goodie.cost, quantity };
         db.exec("COMMIT");
       }
     }
@@ -139,8 +152,8 @@ export async function redeem(formData: FormData) {
   writeLedger({
     userId: user.id,
     kind: "dollars",
-    delta: -redeemed.cost,
-    note: `Redeemed ${redeemed.name}`,
+    delta: -redeemed.cost * redeemed.quantity,
+    note: `Redeemed ${redeemed.quantity}x ${redeemed.name}`,
     actorId: user.id,
   });
   touch();
@@ -154,15 +167,17 @@ export async function refundRedemption(formData: FormData) {
   const redemption = db
     .prepare("SELECT * FROM redemptions WHERE id = ?")
     .get(redemptionId) as
-    | { id: string; user_id: string; goodie_id: string; goodie_name: string; cost: number; status: string }
+    | { id: string; user_id: string; goodie_id: string; goodie_name: string; cost: number; quantity: number; status: string }
     | undefined;
 
   if (!redemption || redemption.status !== "claimed") redirect("/admin/goodies?error=missing");
 
+  const refundAmount = redemption.cost * redemption.quantity;
+
   db.exec("BEGIN");
   try {
-    db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(redemption.cost, redemption.user_id);
-    db.prepare("UPDATE goodies SET stock = stock + 1 WHERE id = ?").run(redemption.goodie_id);
+    db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(refundAmount, redemption.user_id);
+    db.prepare("UPDATE goodies SET stock = stock + ? WHERE id = ?").run(redemption.quantity, redemption.goodie_id);
     db.prepare("UPDATE redemptions SET status = 'refunded' WHERE id = ?").run(redemption.id);
     db.exec("COMMIT");
   } catch (error) {
@@ -173,8 +188,8 @@ export async function refundRedemption(formData: FormData) {
   writeLedger({
     userId: redemption.user_id,
     kind: "dollars",
-    delta: redemption.cost,
-    note: `Refunded ${redemption.goodie_name}`,
+    delta: refundAmount,
+    note: `Refunded ${redemption.quantity}x ${redemption.goodie_name}`,
     actorId: admin.id,
   });
   touch();
@@ -355,23 +370,25 @@ export async function createWalkIn(formData: FormData) {
   await requireAdmin();
   const name = cleanName(String(formData.get("name") || ""));
   const phone = String(formData.get("phone") || "");
+  const password = String(formData.get("password") || "");
   const college = clampText(String(formData.get("college") || ""), 120);
   const key = phoneKey(phone);
-  if (name.length < 2 || !/^\d{10}$/.test(key)) redirect("/admin/students?error=invalid");
+  if (name.length < 2 || !/^\d{10}$/.test(key) || password.length < 8) redirect("/admin/students?error=invalid");
 
   const existing = getDb().prepare("SELECT id FROM users WHERE phone_key = ?").get(key);
   if (existing) redirect("/admin/students?error=duplicate");
 
   const id = `walk-${randomUUID().slice(0, 8)}`;
+  const password_hash = hashPassword(password);
   getDb()
     .prepare(
       `INSERT INTO users (
-        id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+        id, guest_id, name, name_key, email, phone, phone_key, password_hash, session_version, college, year, occupation,
         role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
         portfolio, bio, slug, approval_status, heard_from, signals, created_at
-      ) VALUES (?, NULL, ?, ?, '', ?, ?, ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'walk-in', '', '[]', ?)`,
+      ) VALUES (?, NULL, ?, ?, '', ?, ?, ?, 0, ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'walk-in', '', '[]', ?)`,
     )
-    .run(id, name, normName(name), phone.trim(), key, college, id, new Date().toISOString());
+    .run(id, name, normName(name), phone.trim(), key, password_hash, college, id, new Date().toISOString());
 
   touch();
   redirect(`/admin/students/${id}?notice=walkin`);
@@ -473,4 +490,17 @@ export async function saveGoodie(formData: FormData) {
   }
   touch();
   redirect("/admin/goodies?notice=goodie");
+}
+
+export async function connectWithUser(formData: FormData) {
+  const user = await requireUser();
+  const targetId = String(formData.get("targetId") || "");
+  const returnTo = safeReturn(formData.get("returnTo"), "/");
+  if (!targetId || targetId === user.id) redirect(returnTo);
+  const target = getUserById(targetId);
+  if (!target || target.role !== "user") redirect(returnTo);
+  const { recordConnection } = await import("./db");
+  recordConnection(user.id, targetId);
+  touch();
+  redirect(returnTo);
 }
