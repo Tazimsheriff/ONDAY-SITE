@@ -5,7 +5,6 @@ import { DatabaseSync } from "node:sqlite";
 import { cleanName, normName, phoneKey } from "./format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "event.db");
 
 const globalForDb = globalThis as unknown as { eventDb?: DatabaseSync };
 
@@ -361,10 +360,16 @@ function ensureColumns(db: DatabaseSync) {
   `);
 }
 
+function resolveDbPath(): string {
+  // Vercel’s app directory is read-only. /tmp is the only place a file can be created.
+  const dir = process.env.VERCEL ? path.join("/tmp", "class101") : DATA_DIR;
+  fs.mkdirSync(dir, { recursive: true });
+  return path.join(dir, "event.db");
+}
+
 export function getDb(): DatabaseSync {
   if (!globalForDb.eventDb) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const db = new DatabaseSync(DB_PATH);
+    const db = new DatabaseSync(resolveDbPath());
     createSchema(db);
     seed(db);
     globalForDb.eventDb = db;
