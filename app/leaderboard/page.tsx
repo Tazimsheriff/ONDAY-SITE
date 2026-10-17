@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { Eyebrow } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
 import { leaderboard, listTeamMembers } from "@/lib/db";
-import { teamColor } from "@/lib/format";
+import { initials, teamColor } from "@/lib/format";
 
 export const metadata = { title: "Board" };
 
 export default async function LeaderboardPage() {
   const user = await getSessionUser();
+  const named = Boolean(user);
   const board = leaderboard();
 
   return (
@@ -16,6 +18,15 @@ export default async function LeaderboardPage() {
       <p className="mt-3 max-w-xl text-lg">
         Teams are ranked by marks: every member&apos;s points, plus any bonus the organizers add. Individuals are ranked by points alone.
       </p>
+      {named ? null : (
+        <p className="mt-3 max-w-xl text-sm">
+          Names stay as initials until you{" "}
+          <Link className="font-bold underline" href="/login?next=/leaderboard">
+            sign in
+          </Link>
+          .
+        </p>
+      )}
 
       <div className="mt-8 grid min-w-0 gap-4 lg:grid-cols-2">
         <section className="min-w-0">
@@ -43,7 +54,7 @@ export default async function LeaderboardPage() {
                   </div>
                   <p className="mt-3 break-words text-sm">
                     {members.length
-                      ? members.map((member) => member.name).join(" · ")
+                      ? members.map((member) => (named ? member.name : initials(member.name))).join(" · ")
                       : "No one allotted yet."}
                   </p>
                 </li>
@@ -61,8 +72,10 @@ export default async function LeaderboardPage() {
                 <li key={person.id} className="flex items-center gap-3 border-b-[1.6px] border-ink px-3 py-3 last:border-b-0" style={{ background: yours ? "#ffd966" : undefined }}>
                   <span className="w-8 font-display text-xl font-extrabold">{person.rank}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-bold">{person.name}{yours ? " · You" : ""}</span>
-                    <span className="block truncate text-xs">{[person.team_name || "No team", person.college].filter(Boolean).join(" · ")}</span>
+                    <span className="block truncate font-bold">{named ? person.name : initials(person.name)}{yours ? " · You" : ""}</span>
+                    <span className="block truncate text-xs">
+                      {(named ? [person.team_name || "No team", person.college] : [person.team_name || "No team"]).filter(Boolean).join(" · ")}
+                    </span>
                   </span>
                   <span className="font-display text-2xl font-extrabold">{person.points}</span>
                 </li>

@@ -269,8 +269,8 @@ function seed(db: DatabaseSync) {
     }
 
     const goodies: [string, string, number, number][] = [
-      ["Sticker sheet", "The CodeSapiens mark, peeled and stuck on something you carry.", 0, 40],
-      ["Snack pass", "One counter snack. Hunger is not a personality.", 15, 60],
+      ["Sticker sheet", "The CodeSapiens mark, peeled and stuck on something you carry.", 0, 100],
+      ["Snack pass", "One counter snack. Hunger is not a personality.", 15, 100],
       ["Pin badge", "A small metal claim that you were in the room.", 30, 30],
       ["Demo-slot token", "Jump the line and show what you made.", 60, 10],
       ["Tote bag", "Carry the syllabus you were supposed to leave behind.", 80, 16],
@@ -563,7 +563,24 @@ function ensureColumns(db: DatabaseSync) {
       value TEXT NOT NULL
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      bucket TEXT PRIMARY KEY,
+      fails INTEGER NOT NULL,
+      window_start INTEGER NOT NULL,
+      locked_until INTEGER NOT NULL
+    );
+  `);
   db.prepare("UPDATE goodies SET cost = 0 WHERE lower(name) LIKE '%sticker%' AND cost != 0").run();
+  const stockSet = db.prepare("SELECT value FROM settings WHERE key = 'stock_snack_sticker_100'").get() as
+    | { value: string }
+    | undefined;
+  if (!stockSet) {
+    db.prepare(
+      "UPDATE goodies SET stock = 100 WHERE lower(name) LIKE '%snack%' OR lower(name) LIKE '%sticker%'",
+    ).run();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('stock_snack_sticker_100', '1')").run();
+  }
 }
 
 function importGenders(db: DatabaseSync) {

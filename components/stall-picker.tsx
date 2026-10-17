@@ -9,11 +9,13 @@ export function StallPicker({
   first,
   second,
   confirmed,
+  children,
 }: {
   mentors: AgendaMentor[];
   first: string;
   second: string;
   confirmed: boolean;
+  children?: React.ReactNode;
 }) {
   const [one, setOne] = useState(first);
   const [two, setTwo] = useState(second === first ? "" : second);
@@ -33,32 +35,39 @@ export function StallPicker({
     else setTwo(id);
   }
 
-  if (confirmed) {
-    return (
-      <div>
-        <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Your stalls</p>
-        <p className="mt-1 text-sm font-extrabold leading-relaxed">Confirmed. You can't change this.</p>
-        <MentorRail mentors={mentors} one={first} two={second} />
-      </div>
-    );
-  }
+  const ready = Boolean(one && two);
 
   return (
-    <form action={saveStallPriorities}>
-      <input type="hidden" name="stallOne" value={one} />
-      <input type="hidden" name="stallTwo" value={two} />
-      <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Your stalls</p>
-      <p className="mt-1 text-sm leading-relaxed">
-        Tap one for 1st and another for 2nd. Confirm locks it. You can't change it after that. On a phone, two show at once and the next one peeks in.
-      </p>
-      <MentorRail mentors={mentors} one={one} two={two} onPick={pick} />
-      <button
-        type="submit"
-        disabled={!one || !two}
-        className="mt-4 border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c] disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        Confirm selection
-      </button>
+    <form action={confirmed ? undefined : saveStallPriorities} className="flex min-h-0 flex-1 flex-col">
+      {confirmed ? null : (
+        <>
+          <input type="hidden" name="stallOne" value={one} />
+          <input type="hidden" name="stallTwo" value={two} />
+        </>
+      )}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-7 sm:py-7">
+        {children}
+        <div className="mt-4">
+          <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Your stalls</p>
+          <p className="mt-1 text-sm leading-relaxed">
+            {confirmed
+              ? "Confirmed. You can't change this."
+              : "Tap one for 1st and another for 2nd. Confirm locks it. You can't change it after that. On a phone, two show at once and the next one peeks in."}
+          </p>
+          <MentorRail mentors={mentors} one={confirmed ? first : one} two={confirmed ? second : two} onPick={confirmed ? undefined : pick} />
+        </div>
+      </div>
+      {confirmed ? null : (
+        <div className="shrink-0 border-t-[2.5px] border-[#1c1c1c] bg-[#1c1c1c] px-4 py-3 sm:px-7">
+          <button
+            type="submit"
+            disabled={!ready}
+            className="w-full border-[2.5px] border-[#ffe34a] bg-[#ffe34a] px-4 py-3.5 text-base font-extrabold text-[#1c1c1c] disabled:cursor-not-allowed disabled:border-white disabled:bg-white"
+          >
+            {ready ? "Confirm selection" : "Pick a 1st and a 2nd"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }

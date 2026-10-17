@@ -346,47 +346,61 @@ function SessionDialog({
   const when = timeLines(session.start, session.end).join(" ");
   const linkedin = session.linkedin.startsWith("http") ? session.linkedin : "";
 
+  const chooseStalls = Boolean(session.mentors?.length && role === "user");
+  const intro = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-extrabold">{when}</p>
+        <button type="button" onClick={onClose} className="shrink-0 border-[2px] border-[#1c1c1c] bg-white px-3 py-1 text-sm font-extrabold">
+          Close
+        </button>
+      </div>
+      <h2 id="session-title" className="mt-3 font-display text-4xl font-extrabold leading-none tracking-tight">
+        {session.title}
+      </h2>
+      {session.detail && !session.mentors?.length ? <p className="mt-2 text-lg font-semibold">{session.detail}</p> : null}
+      {session.host ? <p className="mt-2 text-lg font-extrabold">{session.host}</p> : null}
+      {session.photo ? (
+        <img
+          src={session.photo}
+          alt={session.host || session.title}
+          className="mt-4 max-h-80 w-full rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] object-contain"
+        />
+      ) : null}
+      <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">What to expect</p>
+      <p className="mt-2 text-base leading-relaxed">{session.expect}</p>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#1c1c1c]/45 p-3 sm:items-center sm:p-6" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[#1c1c1c]/45 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:items-center sm:p-6"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-title"
-        className={`max-h-[85vh] w-full overflow-auto rounded-[1.4rem] border-[2.5px] border-[#1c1c1c] bg-[#f6efe2] p-5 shadow-[8px_8px_0_#1c1c1c] sm:p-7 ${session.mentors?.length ? "max-w-5xl" : "max-w-2xl"}`}
+        className={`flex min-h-0 w-full flex-col overflow-hidden rounded-[1.4rem] border-[2.5px] border-[#1c1c1c] bg-[#f6efe2] shadow-[8px_8px_0_#1c1c1c] ${
+          chooseStalls ? "h-[min(92dvh,100%)] max-w-5xl" : session.mentors?.length ? "max-h-[92dvh] max-w-5xl" : "max-h-[85vh] max-w-2xl"
+        }`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-extrabold">{when}</p>
-          <button type="button" onClick={onClose} className="shrink-0 border-[2px] border-[#1c1c1c] bg-white px-3 py-1 text-sm font-extrabold">
-            Close
-          </button>
-        </div>
-        <h2 id="session-title" className="mt-3 font-display text-4xl font-extrabold leading-none tracking-tight">
-          {session.title}
-        </h2>
-        {session.detail && !session.mentors?.length ? <p className="mt-2 text-lg font-semibold">{session.detail}</p> : null}
-        {session.host ? <p className="mt-2 text-lg font-extrabold">{session.host}</p> : null}
-        {session.photo ? (
-          <img
-            src={session.photo}
-            alt={session.host || session.title}
-            className="mt-4 max-h-80 w-full rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] object-contain"
-          />
-        ) : null}
-        <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">What to expect</p>
-        <p className="mt-2 text-base leading-relaxed">{session.expect}</p>
-        {session.mentors?.length ? (
-          <div className="mt-4">
-            {role === "user" ? (
-              <StallPicker mentors={session.mentors} first={first} second={second} confirmed={confirmed} />
-            ) : (
-              <>
+        {chooseStalls && session.mentors ? (
+          <StallPicker mentors={session.mentors} first={first} second={second} confirmed={confirmed}>
+            {intro}
+          </StallPicker>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 sm:p-7">
+            {intro}
+            {session.mentors?.length ? (
+              <div className="mt-4">
                 {role === "admin" ? (
                   <StallCounts counts={counts} />
                 ) : (
                   <Link
                     href="/login?next=/agenda"
-                    className="inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+                    className="inline-flex w-full items-center justify-center border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-3.5 text-base font-extrabold shadow-[3px_3px_0_#1c1c1c] sm:w-auto"
                   >
                     Sign in to choose your two stalls
                   </Link>
@@ -394,20 +408,20 @@ function SessionDialog({
                 <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">Stalls</p>
                 <p className="mt-1 text-sm">Swipe sideways. Two stalls show at once on a phone.</p>
                 <MentorRail mentors={session.mentors} />
-              </>
-            )}
+              </div>
+            ) : null}
+            {linkedin ? (
+              <a
+                className="mt-5 inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+                href={linkedin}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {session.host ? `${session.host} on LinkedIn` : "LinkedIn"}
+              </a>
+            ) : null}
           </div>
-        ) : null}
-        {linkedin ? (
-          <a
-            className="mt-5 inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
-            href={linkedin}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {session.host ? `${session.host} on LinkedIn` : "LinkedIn"}
-          </a>
-        ) : null}
+        )}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { clearSession, requireAdmin, requireUser, setSession } from "./auth";
 import {
@@ -18,6 +19,7 @@ import {
 } from "./db";
 import { AGENDA, stallList } from "./agenda";
 import { clampText, cleanName, genderLabel, integer, normName, phoneKey, safeReturn } from "./format";
+import { clientIp, loginBlocked, recordLoginFailure, recordLoginSuccess } from "./login-limit";
 
 function touch() {
   revalidatePath("/");
@@ -31,9 +33,16 @@ function touch() {
 }
 
 export async function login(formData: FormData) {
-  const user = findLogin(String(formData.get("name") || ""), String(formData.get("phone") || ""));
-  if (!user) redirect("/login?error=mismatch");
-  if (!canLogin(user)) redirect("/login?error=unapproved");
+  const name = String(formData.get("name") || "");
+  const headerList = await headers();
+  const ip = clientIp((header) => headerList.get(header));
+  if (loginBlocked(ip, name)) redirect("/login?error=slowdown");
+  const user = findLogin(name, String(formData.get("phone") || ""));
+  if (!user || !canLogin(user)) {
+    recordLoginFailure(ip, name);
+    redirect(`/login?error=${loginBlocked(ip, name) ? "slowdown" : user ? "unapproved" : "mismatch"}`);
+  }
+  recordLoginSuccess(ip, name);
   await setSession(user.id);
   const next = safeReturn(formData.get("next"), "");
   redirect(user.role === "admin" ? "/admin" : next || "/dashboard");

@@ -21,6 +21,15 @@ export function cleanName(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "S.";
+  const first = parts[0].replace(/[^a-zA-Z0-9]/g, "").slice(0, 1).toUpperCase() || "S";
+  if (parts.length === 1) return `${first}.`;
+  const last = parts[parts.length - 1].replace(/[^a-zA-Z0-9]/g, "").slice(0, 1).toUpperCase();
+  return last ? `${first}. ${last}.` : `${first}.`;
+}
+
 export function clampText(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
 }
@@ -113,6 +122,7 @@ const FLASH: Record<string, string> = {
   mismatch: "That name and phone aren't on the list. Use the ones from your Luma registration.",
   unapproved: "That registration isn't approved yet. Only approved guests can sign in.",
   unavailable: "Sign-in didn't go through. Try once more.",
+  slowdown: "Too many sign-in tries. Wait 15 minutes, then try again.",
   saved: "Saved.",
   profile: "Profile saved. Your QR is ready.",
   redeemed: "Redeemed. Show the QR to be scanned.",
