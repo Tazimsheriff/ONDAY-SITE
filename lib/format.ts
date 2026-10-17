@@ -101,6 +101,14 @@ export function teamColor(color: string): string {
   return TEAM_COLORS.butter;
 }
 
+export function genderLabel(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  if (value === "boy" || value === "male" || value === "m") return "Boy";
+  if (value === "girl" || value === "female" || value === "f") return "Girl";
+  if (value === "unclear" || value === "unknown" || value === "unsure") return "Unclear";
+  return "";
+}
+
 const FLASH: Record<string, string> = {
   mismatch: "That name and phone aren't on the list. Use the ones from your Luma registration.",
   unavailable: "Sign-in didn't go through. Try once more.",
@@ -113,10 +121,12 @@ const FLASH: Record<string, string> = {
   walkin: "Walk-in added. Their password is the phone number you entered.",
   duplicate: "That phone number is already on the list.",
   invalid: "Need a name and a 10-digit phone number.",
+  roster: "The CSV needs a header row with name and team columns, and at least one person selected when adding from the list.",
   refunded: "Redemption refunded. Dollars and stock are back.",
   applied: "Applied to the matching Sapiens.",
   missing: "Couldn't find that Sapien.",
   team: "Team saved.",
+  removed: "Removed from the team.",
   points: "Team points updated.",
   secret: "Secret task saved.",
   goodie: "Goodie saved.",

@@ -61,6 +61,15 @@ export default async function StudentEditPage({
           <input name="college" defaultValue={user.college} className="field mt-1 font-medium" />
         </label>
         <label className="text-sm font-bold">
+          Gender
+          <select name="gender" defaultValue={user.gender} className="field mt-1 font-medium">
+            <option value="">Not set</option>
+            <option value="Boy">Boy</option>
+            <option value="Girl">Girl</option>
+            <option value="Unclear">Unclear</option>
+          </select>
+        </label>
+        <label className="text-sm font-bold">
           Task
           <textarea name="task" defaultValue={user.task} className="field mt-1 min-h-24 font-medium" />
         </label>

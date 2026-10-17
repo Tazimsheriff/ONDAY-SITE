@@ -1,6 +1,6 @@
 import { Flash, btn } from "@/components/ui";
-import { adjustTeamPoints, deleteTeam, saveTeam } from "@/lib/actions";
-import { listTeamMembers, listTeams } from "@/lib/db";
+import { addPeopleToTeam, adjustTeamPoints, assignTeamsFromCsv, deleteTeam, removeFromTeam, saveTeam } from "@/lib/actions";
+import { listStudents, listTeamMembers, listTeams } from "@/lib/db";
 import { TEAM_COLORS, teamColor } from "@/lib/format";
 
 export const metadata = { title: "Teams" };
@@ -8,19 +8,82 @@ export const metadata = { title: "Teams" };
 export default async function TeamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ notice?: string; error?: string }>;
+  searchParams: Promise<{ notice?: string; error?: string; added?: string; skipped?: string }>;
 }) {
   const flash = await searchParams;
   const teams = listTeams();
+  const students = listStudents().sort((a, b) => {
+    const college = (a.college || "\uffff").localeCompare(b.college || "\uffff");
+    if (college) return college;
+    return a.name.localeCompare(b.name);
+  });
+  const added = Number.parseInt(flash.added || "", 10);
+  const skipped = Number.parseInt(flash.skipped || "", 10);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="font-display text-5xl font-extrabold tracking-tight">Teams</h1>
       <p className="mt-2 max-w-xl">
-        Create a team here, then allot people from the Sapiens list. Team points move the board on their own. Member points are added on top.
+        Create a team here, then add people who are already on the list or upload a CSV. Team points move the board on their own. Member points are added on top.
       </p>
       <div className="mt-4">
-        <Flash error={flash.error} notice={flash.notice} />
+        <Flash error={flash.error} notice={flash.notice === "roster" ? undefined : flash.notice} />
+        {flash.notice === "roster" && Number.isFinite(added) ? (
+          <p className="border-[1.6px] border-ink bg-mintcard px-4 py-3 text-sm font-semibold shadow-[3px_3px_0_#0a0a0a]">
+            Put {added} {added === 1 ? "person" : "people"} on a team.
+            {Number.isFinite(skipped) && skipped > 0 ? ` Skipped ${skipped} that didn't match a person or a team.` : ""}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <form action={addPeopleToTeam} className="border-[1.6px] border-ink bg-paper p-4 shadow-[4px_4px_0_#0a0a0a]">
+          <h2 className="font-display text-2xl font-extrabold">Add people already here</h2>
+          <p className="mt-1 text-sm">Pick a team and tick the people. Someone already on another team moves.</p>
+          <select name="teamId" required className="field mt-3" defaultValue="">
+            <option value="" disabled>
+              Choose a team
+            </option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+          <div className="mt-2 max-h-64 overflow-auto border-[1.6px] border-ink bg-cream">
+            {students.length ? (
+              students.map((student) => (
+                <label key={student.id} className="flex items-start gap-2 border-b border-ink/15 px-3 py-2 text-sm">
+                  <input type="checkbox" name="userId" value={student.id} className="mt-1" />
+                  <span className="min-w-0">
+                    <span className="block font-semibold">{student.name}</span>
+                    <span className="block text-xs">
+                      {[student.college || "No college", student.gender, student.team_name || "Unassigned"].filter(Boolean).join(" · ")}
+                    </span>
+                  </span>
+                </label>
+              ))
+            ) : (
+              <p className="px-3 py-3 text-sm">Nobody is on the list yet.</p>
+            )}
+          </div>
+          <button className={`${btn("ink")} mt-3`} type="submit">
+            Add to team
+          </button>
+        </form>
+
+        <form action={assignTeamsFromCsv} className="border-[1.6px] border-ink bg-lilac p-4 shadow-[4px_4px_0_#0a0a0a]">
+          <h2 className="font-display text-2xl font-extrabold">Upload a CSV</h2>
+          <p className="mt-1 text-sm">
+            The first row needs <span className="font-bold">name</span> and <span className="font-bold">team</span>. Add <span className="font-bold">phone</span> when two people share a name, and <span className="font-bold">gender</span> if you have it. The team must already exist.
+          </p>
+          <pre className="mt-3 overflow-x-auto border-[1.6px] border-ink bg-paper px-3 py-2 text-xs">{`name,phone,team
+A Student,9000000001,Explore`}</pre>
+          <input name="file" type="file" accept=".csv,text/csv" required className="mt-3 block w-full text-sm" />
+          <button className={`${btn("ink")} mt-3`} type="submit">
+            Assign from CSV
+          </button>
+        </form>
       </div>
 
       <form action={saveTeam} className="mt-6 grid gap-2 border-[1.6px] border-ink bg-yellow p-4 shadow-[4px_4px_0_#0a0a0a] md:grid-cols-[1fr_1.4fr_auto_auto]">
@@ -68,7 +131,30 @@ export default async function TeamsPage({
                 </p>
               </div>
               <p className="mt-3 text-sm font-semibold">{members.length} members</p>
-              <p className="text-sm">{members.length ? members.map((member) => `${member.name} (${member.points})`).join(" · ") : "Empty team."}</p>
+              {members.length ? (
+                <ul className="mt-1 text-sm">
+                  {members.map((member) => (
+                    <li key={member.id} className="mt-1 flex items-start justify-between gap-2">
+                      <span>
+                        <span className="font-semibold">{member.name}</span>
+                        <span className="text-xs">
+                          {" "}
+                          {[member.college || "No college", member.gender].filter(Boolean).join(" · ")} · {member.points} pts
+                        </span>
+                      </span>
+                      <button
+                        className="shrink-0 text-xs font-bold underline"
+                        formAction={removeFromTeam.bind(null, member.id)}
+                        type="submit"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm">Empty team.</p>
+              )}
               <button className="mt-3 text-xs font-bold underline" formAction={deleteTeam} type="submit">
                 Delete team
               </button>

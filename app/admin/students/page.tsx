@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Flash, btn } from "@/components/ui";
+import { GenderSelect } from "@/components/gender-select";
 import { TeamSelect } from "@/components/team-select";
 import { addScore, bulkApply, createWalkIn, saveSecretTask } from "@/lib/actions";
 import { listStudents, listTeams } from "@/lib/db";
@@ -27,7 +28,11 @@ export default async function StudentsPage({
   }));
   const returnTo = queryPath("/admin/students", sp);
 
-  let students = listStudents();
+  const everyone = listStudents();
+  const boyCount = everyone.filter((student) => student.gender === "Boy").length;
+  const girlCount = everyone.filter((student) => student.gender === "Girl").length;
+  const unclearCount = everyone.filter((student) => student.gender === "Unclear").length;
+  let students = everyone;
   if (teamFilter === "none") students = students.filter((student) => !student.team_id);
   else if (teamFilter) students = students.filter((student) => student.team_id === teamFilter);
   if (q) {
@@ -47,6 +52,9 @@ export default async function StudentsPage({
         </div>
         <p className="border-[1.6px] border-ink bg-yellow px-3 py-2 text-sm font-bold shadow-[3px_3px_0_#0a0a0a]">
           {students.length} showing
+          <span className="mt-1 block font-semibold">
+            {boyCount} boys · {girlCount} girls{unclearCount ? ` · ${unclearCount} to check` : ""}
+          </span>
         </p>
       </div>
 
@@ -116,6 +124,9 @@ export default async function StudentsPage({
               {student.name}
             </Link>
             <p className="mt-1 text-xs">{[student.college, student.year].filter(Boolean).join(" · ")}</p>
+            <div className="mt-2">
+              <GenderSelect userId={student.id} gender={student.gender} returnTo={returnTo} />
+            </div>
             <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em]">{statusLabel(student.approval_status)}</p>
             <p className="mt-2 font-mono text-sm">{student.phone_key ? formatPhone(student.phone_key) : "No phone"}</p>
             <div className="mt-3">
@@ -156,6 +167,7 @@ export default async function StudentsPage({
           <thead className="bg-yellow text-xs uppercase tracking-[0.12em]">
             <tr>
               <th className="px-3 py-2 font-bold">Sapien</th>
+              <th className="px-3 py-2 font-bold">Gender</th>
               <th className="px-3 py-2 font-bold">Password</th>
               <th className="px-3 py-2 font-bold">Team</th>
               <th className="px-3 py-2 font-bold">Points</th>
@@ -172,6 +184,9 @@ export default async function StudentsPage({
                   </Link>
                   <p className="mt-1 max-w-[220px] text-xs">{[student.college, student.year].filter(Boolean).join(" · ")}</p>
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em]">{statusLabel(student.approval_status)}</p>
+                </td>
+                <td className="px-3 py-3">
+                  <GenderSelect userId={student.id} gender={student.gender} returnTo={returnTo} />
                 </td>
                 <td className="px-3 py-3 font-mono text-xs">{student.phone_key ? formatPhone(student.phone_key) : "No phone"}</td>
                 <td className="px-3 py-3">

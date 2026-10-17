@@ -8,11 +8,12 @@ import {
   findLogin,
   getDb,
   getUserById,
+  parseCsv,
   recordConnection,
   writeLedger,
   type UserRow,
 } from "./db";
-import { clampText, cleanName, integer, normName, phoneKey, safeReturn } from "./format";
+import { clampText, cleanName, genderLabel, integer, normName, phoneKey, safeReturn } from "./format";
 
 function touch() {
   revalidatePath("/");
@@ -212,6 +213,9 @@ export async function saveStudent(formData: FormData) {
   }
   const points = Math.max(0, Math.min(1_000_000, integer(formData.get("points"), user.points)));
   const dollars = Math.max(0, Math.min(1_000_000, integer(formData.get("dollars"), user.dollars)));
+  const genderRaw = String(formData.get("gender") || "");
+  const gender = genderLabel(genderRaw);
+  if (genderRaw.trim() && !gender) redirect(`/admin/students/${user.id}?error=invalid`);
   const teamValue = String(formData.get("teamId") || "");
   const teamId = teamValue || null;
 
@@ -223,10 +227,10 @@ export async function saveStudent(formData: FormData) {
   getDb()
     .prepare(
       `UPDATE users
-       SET task = ?, secret_task = ?, college = ?, points = ?, dollars = ?, team_id = ?, phone = ?, phone_key = ?
+       SET task = ?, secret_task = ?, college = ?, gender = ?, points = ?, dollars = ?, team_id = ?, phone = ?, phone_key = ?
        WHERE id = ?`,
     )
-    .run(task, secretTask, college, points, dollars, teamId, phoneRaw, nextPhoneKey, user.id);
+    .run(task, secretTask, college, gender, points, dollars, teamId, phoneRaw, nextPhoneKey, user.id);
 
   if (points !== user.points) {
     writeLedger({
@@ -251,6 +255,34 @@ export async function saveStudent(formData: FormData) {
   revalidatePath(`/admin/students/${user.id}`);
   revalidatePath(`/card/${user.slug}`);
   redirect(`/admin/students/${user.id}?notice=saved`);
+}
+
+export async function setGender(formData: FormData) {
+  await requireAdmin();
+  const user = await studentOrRedirect(String(formData.get("userId") || ""));
+  const genderRaw = String(formData.get("gender") || "");
+  const gender = genderLabel(genderRaw);
+  if (genderRaw.trim() && !gender) redirect(safeReturn(formData.get("returnTo"), `/admin/students/${user.id}?error=invalid`));
+  getDb().prepare("UPDATE users SET gender = ? WHERE id = ? AND role = 'user'").run(gender, user.id);
+  touch();
+  revalidatePath(`/admin/students/${user.id}`);
+  revalidatePath(`/card/${user.slug}`);
+  redirect(safeReturn(formData.get("returnTo"), `/admin/students/${user.id}`));
+}
+
+export async function removeFromTeam(userId: string, _formData: FormData) {
+  const admin = await requireAdmin();
+  const user = await studentOrRedirect(userId);
+  getDb().prepare("UPDATE users SET team_id = NULL WHERE id = ? AND role = 'user'").run(user.id);
+  writeLedger({
+    userId: user.id,
+    kind: "team",
+    delta: 0,
+    note: "Removed from team",
+    actorId: admin.id,
+  });
+  touch();
+  redirect("/admin/teams?notice=removed");
 }
 
 export async function assignTeam(formData: FormData) {
@@ -356,6 +388,127 @@ export async function createWalkIn(formData: FormData) {
 
   touch();
   redirect(`/admin/students/${id}?notice=walkin`);
+}
+
+export async function addPeopleToTeam(formData: FormData) {
+  const admin = await requireAdmin();
+  const teamId = String(formData.get("teamId") || "");
+  const ids = [...new Set(formData.getAll("userId").map((value) => String(value)).filter(Boolean))].slice(0, 500);
+  const team = getDb().prepare("SELECT id, name FROM teams WHERE id = ?").get(teamId) as
+    | { id: string; name: string }
+    | undefined;
+  if (!team || ids.length === 0) redirect("/admin/teams?error=roster");
+
+  const update = getDb().prepare("UPDATE users SET team_id = ? WHERE id = ? AND role = 'user'");
+  let added = 0;
+  const db = getDb();
+  db.exec("BEGIN");
+  try {
+    for (const id of ids) {
+      const result = update.run(team.id, id);
+      if (!result.changes) continue;
+      added += 1;
+      writeLedger({
+        userId: id,
+        teamId: team.id,
+        kind: "team",
+        delta: 0,
+        note: `Moved to ${team.name}`,
+        actorId: admin.id,
+      });
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  touch();
+  redirect(`/admin/teams?notice=roster&added=${added}&skipped=${ids.length - added}`);
+}
+
+function csvColumn(row: Record<string, string>, parts: string[], avoid: string[] = []): string {
+  const keys = Object.keys(row).filter((key) => !avoid.some((word) => key.toLowerCase().includes(word)));
+  const exact = keys.find((key) => parts.includes(key.trim().toLowerCase()));
+  const fuzzy = keys.find((key) => parts.some((part) => key.toLowerCase().includes(part)));
+  const key = exact ?? fuzzy;
+  return key ? row[key].trim() : "";
+}
+
+export async function assignTeamsFromCsv(formData: FormData) {
+  const admin = await requireAdmin();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0 || file.size > 1_000_000) redirect("/admin/teams?error=roster");
+  const records = parseCsv(await file.text()).slice(0, 2000);
+  const headers = Object.keys(records[0] ?? {});
+  const hasName = headers.some((key) => key.toLowerCase().includes("name") && !key.toLowerCase().includes("team"));
+  const hasTeam = headers.some((key) => key.toLowerCase().includes("team"));
+  if (!records.length || !hasName || !hasTeam) redirect("/admin/teams?error=roster");
+
+  const db = getDb();
+  const teams = db.prepare("SELECT id, name FROM teams").all() as { id: string; name: string }[];
+  const teamByName = new Map(teams.map((team) => [normName(team.name), team]));
+  const update = db.prepare("UPDATE users SET team_id = ? WHERE id = ? AND role = 'user'");
+  let added = 0;
+  let skipped = 0;
+
+  db.exec("BEGIN");
+  try {
+    for (const record of records) {
+      const teamName = csvColumn(record, ["team"]);
+      const team = teamByName.get(normName(teamName));
+      const personId = team ? matchRosterPerson(db, record) : null;
+      if (!team || !personId) {
+        skipped += 1;
+        continue;
+      }
+      const result = update.run(team.id, personId);
+      if (!result.changes) {
+        skipped += 1;
+        continue;
+      }
+      const gender = genderLabel(csvColumn(record, ["gender"], ["team"]));
+      if (gender) db.prepare("UPDATE users SET gender = ? WHERE id = ?").run(gender, personId);
+      added += 1;
+      writeLedger({
+        userId: personId,
+        teamId: team.id,
+        kind: "team",
+        delta: 0,
+        note: `Moved to ${team.name}`,
+        actorId: admin.id,
+      });
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+
+  touch();
+  redirect(`/admin/teams?notice=roster&added=${added}&skipped=${skipped}`);
+}
+
+function matchRosterPerson(db: ReturnType<typeof getDb>, record: Record<string, string>): string | null {
+  const guestId = csvColumn(record, ["guest_id", "guest id", "guest"]);
+  if (guestId) {
+    const row = db
+      .prepare("SELECT id FROM users WHERE role = 'user' AND (guest_id = ? OR id = ?)")
+      .get(guestId, guestId) as { id: string } | undefined;
+    return row?.id ?? null;
+  }
+
+  const phone = csvColumn(record, ["phone"]);
+  if (phone) {
+    const key = phoneKey(phone);
+    const rows = db.prepare("SELECT id FROM users WHERE role = 'user' AND phone_key = ?").all(key) as { id: string }[];
+    return rows.length === 1 ? rows[0].id : null;
+  }
+
+  const typed = normName(csvColumn(record, ["name"], ["team"]));
+  if (typed.length < 2) return null;
+  const rows = db.prepare("SELECT id FROM users WHERE role = 'user' AND name_key = ?").all(typed) as { id: string }[];
+  return rows.length === 1 ? rows[0].id : null;
 }
 
 export async function saveTeam(formData: FormData) {

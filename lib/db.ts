@@ -32,6 +32,7 @@ export type UserRow = {
   portfolio: string;
   bio: string;
   slug: string;
+  gender: string;
   approval_status: string;
   heard_from: string;
   signals: string;
@@ -109,6 +110,7 @@ function createSchema(db: DatabaseSync) {
       phone TEXT NOT NULL DEFAULT '',
       phone_key TEXT NOT NULL DEFAULT '',
       college TEXT NOT NULL DEFAULT '',
+      gender TEXT NOT NULL DEFAULT '',
       year TEXT NOT NULL DEFAULT '',
       occupation TEXT NOT NULL DEFAULT '',
       role TEXT NOT NULL DEFAULT 'user',
@@ -173,7 +175,7 @@ function createSchema(db: DatabaseSync) {
   `);
 }
 
-function parseCsv(text: string): Record<string, string>[] {
+export function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -328,6 +330,7 @@ type GuestDraft = {
   phone: string;
   phoneKey: string;
   college: string;
+  gender: string;
   year: string;
   occupation: string;
   status: string;
@@ -358,6 +361,7 @@ function guestDraft(record: Record<string, string>, fallbackTime: string): Guest
     phone,
     phoneKey: phone ? phoneKey(phone) : "",
     college: pick(record, "College/Company"),
+    gender: pick(record, "gender") || pick(record, "sex"),
     year: pick(record, "year do you belong"),
     occupation: pick(record, "Occupation"),
     status: (record.approval_status || "").trim(),
@@ -398,12 +402,18 @@ function importGuests(db: DatabaseSync) {
   );
   const insert = db.prepare(`
     INSERT INTO users (
-      id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+      id, guest_id, name, name_key, email, phone, phone_key, college, gender, year, occupation,
       role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
       portfolio, bio, slug, approval_status, heard_from, signals, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, ?, ?, ?, ?)
   `);
   const update = db.prepare(`
+    UPDATE users
+    SET name = ?, name_key = ?, email = ?, phone = ?, phone_key = ?, college = ?, gender = ?, year = ?,
+        occupation = ?, approval_status = ?, heard_from = ?, signals = ?
+    WHERE id = ?
+  `);
+  const updateKeepGender = db.prepare(`
     UPDATE users
     SET name = ?, name_key = ?, email = ?, phone = ?, phone_key = ?, college = ?, year = ?,
         occupation = ?, approval_status = ?, heard_from = ?, signals = ?
@@ -423,20 +433,38 @@ function importGuests(db: DatabaseSync) {
         continue;
       }
       if (existing) {
-        update.run(
-          draft.name,
-          draft.nameKey,
-          draft.email,
-          draft.phone,
-          draft.phoneKey,
-          draft.college,
-          draft.year,
-          draft.occupation,
-          draft.status,
-          draft.heard,
-          draft.signals,
-          existing.id,
-        );
+        if (draft.gender) {
+          update.run(
+            draft.name,
+            draft.nameKey,
+            draft.email,
+            draft.phone,
+            draft.phoneKey,
+            draft.college,
+            draft.gender,
+            draft.year,
+            draft.occupation,
+            draft.status,
+            draft.heard,
+            draft.signals,
+            existing.id,
+          );
+        } else {
+          updateKeepGender.run(
+            draft.name,
+            draft.nameKey,
+            draft.email,
+            draft.phone,
+            draft.phoneKey,
+            draft.college,
+            draft.year,
+            draft.occupation,
+            draft.status,
+            draft.heard,
+            draft.signals,
+            existing.id,
+          );
+        }
         updated += 1;
         continue;
       }
@@ -449,6 +477,7 @@ function importGuests(db: DatabaseSync) {
         draft.phone,
         draft.phoneKey,
         draft.college,
+        draft.gender,
         draft.year,
         draft.occupation,
         draft.id,
@@ -474,6 +503,9 @@ function ensureColumns(db: DatabaseSync) {
   }
   if (!columns.some((column) => column.name === "session_version")) {
     db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!columns.some((column) => column.name === "gender")) {
+    db.exec("ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
   }
   const redemptionColumns = db.prepare("PRAGMA table_info(redemptions)").all() as { name: string }[];
   if (!redemptionColumns.some((column) => column.name === "quantity")) {
@@ -608,7 +640,7 @@ export function listTeams(): TeamRow[] {
 export function listTeamMembers(teamId: string): UserRow[] {
   return getDb()
     .prepare(
-      `SELECT id, name, points, college, slug FROM users
+      `SELECT id, name, points, college, gender, slug FROM users
        WHERE team_id = ? AND role = 'user'
        ORDER BY points DESC, name_key`,
     )
