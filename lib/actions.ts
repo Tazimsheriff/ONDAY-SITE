@@ -49,7 +49,12 @@ export async function saveStallPriorities(formData: FormData) {
   const two = String(formData.get("stallTwo") || "");
   const stalls = new Set(stallList().map((stall) => stall.id));
   if (!stalls.has(one) || !stalls.has(two) || one === two) redirect("/agenda?error=stall");
-  getDb().prepare("UPDATE users SET stall_one = ?, stall_two = ? WHERE id = ?").run(one, two, user.id);
+  const current = getDb().prepare("SELECT stall_one, stall_picked_at FROM users WHERE id = ?").get(user.id) as {
+    stall_one: string;
+    stall_picked_at: string;
+  };
+  const pickedAt = current.stall_one === one ? current.stall_picked_at : new Date().toISOString();
+  getDb().prepare("UPDATE users SET stall_one = ?, stall_two = ?, stall_picked_at = ? WHERE id = ?").run(one, two, pickedAt, user.id);
   revalidatePath("/agenda");
   revalidatePath("/admin/stalls");
   revalidatePath("/admin/students");

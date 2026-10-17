@@ -55,7 +55,7 @@ export default async function StallsPage({
                     {item.name} · {first.length} first{stall ? ` · ${second.length} second` : ""}
                   </p>
                 </div>
-                <PeopleList people={first} empty="Nobody has picked this first." showSecond />
+                <PeopleList people={first} empty="Nobody has picked this first." showSecond ranked />
                 {stall ? (
                   <>
                     <h3 className="border-t-[1.6px] border-ink px-4 py-3 text-sm font-extrabold uppercase tracking-[0.12em]">
@@ -80,13 +80,23 @@ export default async function StallsPage({
   );
 }
 
+type Person = {
+  id: string;
+  name: string;
+  college: string;
+  team_name?: string | null;
+  stall_one: string;
+  stall_two: string;
+  stall_picked_at: string;
+};
+
 function PeopleBlock({
   title,
   people,
   note,
 }: {
   title: string;
-  people: { id: string; name: string; college: string; team_name?: string | null; stall_one: string; stall_two: string }[];
+  people: Person[];
   note: string;
 }) {
   return (
@@ -105,30 +115,55 @@ function PeopleList({
   empty,
   showSecond,
   showFirst,
+  ranked,
 }: {
-  people: { id: string; name: string; college: string; team_name?: string | null; stall_one: string; stall_two: string }[];
+  people: Person[];
   empty: string;
   showSecond?: boolean;
   showFirst?: boolean;
+  ranked?: boolean;
 }) {
-  const ordered = [...people].sort((a, b) => a.name.localeCompare(b.name));
+  const ordered = [...people].sort(ranked ? byPickTime : (a, b) => a.name.localeCompare(b.name));
   if (!ordered.length) return <p className="px-4 py-3 text-sm">{empty}</p>;
+  const missingTime = ranked && ordered.some((student) => !student.stall_picked_at);
   return (
-    <ul className="divide-y-[1.6px] divide-ink">
-      {ordered.map((student) => (
-        <li key={student.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3">
-          <div>
-            <Link className="font-bold underline-offset-2 hover:underline" href={`/admin/students/${student.id}`}>
-              {student.name}
-            </Link>
-            <p className="text-xs">{[student.college, student.team_name].filter(Boolean).join(" · ")}</p>
-          </div>
-          {showSecond && student.stall_two ? <p className="text-xs font-bold">2nd {stallLabel(student.stall_two)}</p> : null}
-          {showFirst && student.stall_one ? <p className="text-xs font-bold">1st {stallLabel(student.stall_one)}</p> : null}
-        </li>
-      ))}
-    </ul>
+    <>
+      {ranked ? <p className="px-4 pt-3 text-xs font-bold">1 picked this stall first. Send from the top.</p> : null}
+      {missingTime ? <p className="px-4 pt-1 text-xs">Earlier means they picked before the order was saved.</p> : null}
+      <ul className="divide-y-[1.6px] divide-ink">
+        {ordered.map((student, index) => (
+          <li key={student.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3">
+            <div className="flex min-w-0 items-baseline gap-3">
+              {ranked ? <span className="font-display text-2xl font-extrabold leading-none">{index + 1}</span> : null}
+              <div>
+                <Link className="font-bold underline-offset-2 hover:underline" href={`/admin/students/${student.id}`}>
+                  {student.name}
+                </Link>
+                <p className="text-xs">{[student.college, student.team_name].filter(Boolean).join(" · ")}</p>
+              </div>
+            </div>
+            <div className="text-right text-xs font-bold">
+              {ranked ? <p>{pickedClock(student.stall_picked_at)}</p> : null}
+              {showSecond && student.stall_two ? <p>2nd {stallLabel(student.stall_two)}</p> : null}
+              {showFirst && student.stall_one ? <p>1st {stallLabel(student.stall_one)}</p> : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </>
   );
+}
+
+function byPickTime(a: Person, b: Person): number {
+  if (a.stall_picked_at && b.stall_picked_at) return a.stall_picked_at.localeCompare(b.stall_picked_at) || a.name.localeCompare(b.name);
+  if (a.stall_picked_at) return 1;
+  if (b.stall_picked_at) return -1;
+  return a.name.localeCompare(b.name);
+}
+
+function pickedClock(value: string): string {
+  if (!value) return "Earlier";
+  return new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(new Date(value));
 }
 
 function Filter({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
