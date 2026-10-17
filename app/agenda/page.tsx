@@ -1,6 +1,6 @@
 import { AgendaBoard } from "@/components/agenda-board";
 import { getSessionUser } from "@/lib/auth";
-import { listStallPicks } from "@/lib/db";
+import { agendaCursor, listStallPicks } from "@/lib/db";
 import { flashText } from "@/lib/format";
 import { stallList } from "@/lib/agenda";
 
@@ -26,6 +26,7 @@ export default async function AgendaPage({
     <div className="min-h-full bg-[#f6efe2]">
       <AgendaBoard
         now={Date.now()}
+        cursor={agendaCursor()}
         role={user?.role === "admin" || user?.role === "user" ? user.role : null}
         first={user?.role === "user" ? user.stall_one : ""}
         second={user?.role === "user" ? user.stall_two : ""}

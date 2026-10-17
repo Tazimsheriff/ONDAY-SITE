@@ -49,7 +49,7 @@ export function QrScanner({ hint = "Point the camera at their Class 101 QR." }: 
             if (handled.current) return;
             const target = slugFromScan(decoded);
             if (!target) {
-              setMessage("That QR isn't a Class 101 card or snack pass.");
+              setMessage("That QR isn't a Class 101 card or pass.");
               return;
             }
             handled.current = true;
@@ -76,7 +76,7 @@ export function QrScanner({ hint = "Point the camera at their Class 101 QR." }: 
       const decoded = await instance.scanFile(file, false);
       const target = slugFromScan(decoded);
       if (!target) {
-        setMessage("That photo isn't a Class 101 card or snack pass.");
+        setMessage("That photo isn't a Class 101 card or pass.");
         return;
       }
       handled.current = true;

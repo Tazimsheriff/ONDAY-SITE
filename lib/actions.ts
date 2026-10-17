@@ -11,10 +11,12 @@ import {
   getUserById,
   parseCsv,
   recordConnection,
+  agendaCursor,
+  setAgendaCursor,
   writeLedger,
   type UserRow,
 } from "./db";
-import { stallList } from "./agenda";
+import { AGENDA, stallList } from "./agenda";
 import { clampText, cleanName, genderLabel, integer, normName, phoneKey, safeReturn } from "./format";
 
 function touch() {
@@ -66,6 +68,36 @@ export async function saveStallPriorities(formData: FormData) {
   redirect("/agenda?notice=stalls");
 }
 
+function nextAgendaCursor(move: string, picked: string): string {
+  const ids = AGENDA.map((session) => session.id);
+  const ladder = ["before", ...ids, "done"];
+  if (move === "set") {
+    if (picked === "clock") return "";
+    return ladder.includes(picked) ? picked : "";
+  }
+  const current = agendaCursor();
+  let index = ladder.indexOf(current);
+  if (current === "") {
+    const now = Date.now();
+    const live = AGENDA.findIndex((session) => now >= Date.parse(session.start) && now < Date.parse(session.end));
+    if (now >= Date.parse(AGENDA[AGENDA.length - 1].end)) index = ladder.length - 1;
+    else if (live >= 0) index = live + 1;
+    else index = 0;
+  }
+  if (index < 0) index = 0;
+  const step = move === "back" ? -1 : 1;
+  return ladder[Math.min(ladder.length - 1, Math.max(0, index + step))];
+}
+
+export async function setAgendaLive(formData: FormData) {
+  await requireAdmin();
+  const move = String(formData.get("move") || "set");
+  const picked = String(formData.get("session") || "clock");
+  setAgendaCursor(nextAgendaCursor(move, picked));
+  revalidatePath("/agenda");
+  redirect("/agenda?notice=pointer");
+}
+
 export async function updateProfile(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "user") redirect("/admin");
@@ -114,7 +146,7 @@ export async function redeem(formData: FormData) {
       .prepare(
         `SELECT COALESCE(SUM(quantity), 0) AS taken
          FROM redemptions
-         WHERE user_id = ? AND goodie_id = ? AND status = 'claimed'`,
+         WHERE user_id = ? AND goodie_id = ? AND status IN ('claimed', 'collected')`,
       )
       .get(user.id, goodieId) as { taken: number } | undefined;
     const free = goodie?.cost === 0;
@@ -298,7 +330,7 @@ export async function grantGoodie(formData: FormData) {
   const quantity = Math.min(100, Math.max(1, integer(formData.get("quantity"), 1)));
   const back = `/admin/students/${user.id}`;
   const db = getDb();
-  let failure: "stock" | "broke" | "missing" | null = null;
+  let failure: "stock" | "broke" | "missing" | "once" | null = null;
   let granted: { id: string; name: string; cost: number; quantity: number } | null = null;
 
   db.exec("BEGIN IMMEDIATE");
@@ -307,8 +339,17 @@ export async function grantGoodie(formData: FormData) {
       | { id: string; name: string; cost: number; stock: number }
       | undefined;
     const current = db.prepare("SELECT dollars FROM users WHERE id = ?").get(user.id) as { dollars: number } | undefined;
+    const already = db
+      .prepare(
+        `SELECT COALESCE(SUM(quantity), 0) AS taken
+         FROM redemptions
+         WHERE user_id = ? AND goodie_id = ? AND status IN ('claimed', 'collected')`,
+      )
+      .get(user.id, goodieId) as { taken: number } | undefined;
     const totalCost = goodie ? goodie.cost * quantity : 0;
+    const free = goodie?.cost === 0;
     if (!goodie || !current) failure = "missing";
+    else if (free && (quantity !== 1 || Number(already?.taken ?? 0) > 0)) failure = "once";
     else if (goodie.stock < quantity) failure = "stock";
     else if (current.dollars < totalCost) failure = "broke";
     else {

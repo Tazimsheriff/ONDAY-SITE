@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MentorRail, StallPicker } from "@/components/stall-picker";
+import { setAgendaLive } from "@/lib/actions";
 import {
   AGENDA,
   agendaHeadline,
+  manualHeadline,
+  manualState,
   minutesLeft,
   msUntilBoundary,
   nextSessionId,
@@ -30,6 +33,7 @@ const DOT: Record<string, string> = {
 
 export function AgendaBoard({
   now,
+  cursor: initialCursor,
   role,
   first,
   second,
@@ -38,6 +42,7 @@ export function AgendaBoard({
   banner,
 }: {
   now: number;
+  cursor: string;
   role: "user" | "admin" | null;
   first: string;
   second: string;
@@ -46,6 +51,7 @@ export function AgendaBoard({
   banner: string | null;
 }) {
   const [clock, setClock] = useState(now);
+  const [cursor, setCursor] = useState(initialCursor);
 
   useEffect(() => {
     let timer = 0;
@@ -58,10 +64,34 @@ export function AgendaBoard({
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    if (role === "admin") return;
+    let stop = false;
+    const pull = async () => {
+      try {
+        const response = await fetch("/api/agenda", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { cursor?: string };
+        if (!stop && typeof data.cursor === "string") setCursor(data.cursor);
+      } catch {
+        /* keep the last pointer */
+      }
+    };
+    const timer = window.setInterval(pull, 5000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [role]);
+
+  useEffect(() => {
+    setCursor(initialCursor);
+  }, [initialCursor]);
+
   const [openId, setOpenId] = useState<string | null>(null);
-  const headline = agendaHeadline(clock);
+  const headline = manualHeadline(cursor) ?? agendaHeadline(clock);
   const nextId = AGENDA.some((session) => sessionState(session, clock, null) === "now") ? null : nextSessionId(clock);
-  const finished = clock >= Date.parse(AGENDA[AGENDA.length - 1].end);
+  const finished = cursor === "done" || (!cursor && clock >= Date.parse(AGENDA[AGENDA.length - 1].end));
   const openSession = AGENDA.find((session) => session.id === openId) ?? null;
 
   return (
@@ -103,6 +133,7 @@ export function AgendaBoard({
       {banner ? (
         <p className="mx-auto mt-4 max-w-xl border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-3 text-center text-sm font-extrabold">{banner}</p>
       ) : null}
+      {role === "admin" ? <LivePointer cursor={cursor} /> : null}
 
       <h2 className="relative mt-8 inline-block font-display text-5xl font-extrabold uppercase tracking-tight sm:text-6xl lg:text-8xl">
         <span className="absolute inset-x-[-6%] bottom-[0.08em] top-[42%] -z-0 -rotate-1 rounded-[40%] bg-[#ffe34a]" />
@@ -115,7 +146,8 @@ export function AgendaBoard({
           <SessionRow
             key={session.id}
             session={session}
-            state={sessionState(session, clock, nextId)}
+            state={manualState(session.id, cursor) ?? sessionState(session, clock, nextId)}
+            timed={!cursor}
             clock={clock}
             onOpen={setOpenId}
             role={role}
@@ -142,10 +174,58 @@ export function AgendaBoard({
   );
 }
 
+function LivePointer({ cursor }: { cursor: string }) {
+  return (
+    <form action={setAgendaLive} className="mx-auto mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2">
+      <button
+        type="submit"
+        name="move"
+        value="back"
+        className="border-[2.5px] border-[#1c1c1c] bg-white px-3 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+      >
+        Back
+      </button>
+      <select
+        key={cursor || "clock"}
+        name="session"
+        defaultValue={cursor || "clock"}
+        aria-label="Live session"
+        className="min-w-0 max-w-full border-[2.5px] border-[#1c1c1c] bg-white px-3 py-2 text-sm font-extrabold"
+      >
+        <option value="clock">Follow the clock</option>
+        <option value="before">Not started</option>
+        {AGENDA.map((session) => (
+          <option key={session.id} value={session.id}>
+            {session.title}
+          </option>
+        ))}
+        <option value="done">Day finished</option>
+      </select>
+      <button
+        type="submit"
+        name="move"
+        value="set"
+        className="border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-3 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+      >
+        Set pointer
+      </button>
+      <button
+        type="submit"
+        name="move"
+        value="forward"
+        className="border-[2.5px] border-[#1c1c1c] bg-white px-3 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+      >
+        Forward
+      </button>
+    </form>
+  );
+}
+
 function SessionRow({
   session,
   state,
   clock,
+  timed,
   onOpen,
   role,
   first,
@@ -155,6 +235,7 @@ function SessionRow({
   session: AgendaSession;
   state: SessionState;
   clock: number;
+  timed: boolean;
   onOpen: (id: string) => void;
   role: "user" | "admin" | null;
   first: string;
@@ -200,7 +281,7 @@ function SessionRow({
                 <CrownIcon />
                 <h3 className="min-w-0 font-display text-3xl font-extrabold leading-none tracking-tight sm:text-4xl lg:text-6xl">Domain Mentoring Stalls</h3>
               </div>
-              <Mark state={state} minutes={live ? minutesLeft(session.end, clock) : 0} />
+              <Mark state={state} minutes={live && timed ? minutesLeft(session.end, clock) : 0} />
             </div>
             <p className="mt-2 text-sm leading-relaxed lg:mt-3 lg:text-xl">{session.detail}</p>
             {role === "user" ? (
@@ -226,7 +307,7 @@ function SessionRow({
               {session.detail ? <span className="mt-1 block text-sm font-semibold leading-snug sm:text-base lg:text-xl">{session.detail}</span> : null}
               {session.detail && session.host ? <span className="mt-1 block text-sm font-bold lg:text-lg">{session.host}</span> : null}
             </span>
-            <Mark state={state} minutes={live ? minutesLeft(session.end, clock) : 0} />
+            <Mark state={state} minutes={live && timed ? minutesLeft(session.end, clock) : 0} />
           </>
         )}
         {done ? <span className="sr-only">Done</span> : null}

@@ -269,7 +269,7 @@ function seed(db: DatabaseSync) {
     }
 
     const goodies: [string, string, number, number][] = [
-      ["Sticker sheet", "The CodeSapiens mark, peeled and stuck on something you carry.", 20, 40],
+      ["Sticker sheet", "The CodeSapiens mark, peeled and stuck on something you carry.", 0, 40],
       ["Snack pass", "One counter snack. Hunger is not a personality.", 15, 60],
       ["Pin badge", "A small metal claim that you were in the room.", 30, 30],
       ["Demo-slot token", "Jump the line and show what you made.", 60, 10],
@@ -557,6 +557,13 @@ function ensureColumns(db: DatabaseSync) {
       UNIQUE (scanner_id, owner_id)
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `);
+  db.prepare("UPDATE goodies SET cost = 0 WHERE lower(name) LIKE '%sticker%' AND cost != 0").run();
 }
 
 function importGenders(db: DatabaseSync) {
@@ -586,6 +593,117 @@ function importGenders(db: DatabaseSync) {
     updated += 1;
   }
   console.log(`Genders: ${updated} updated, ${missing} not on this host.`);
+}
+
+function importArrivals(db: DatabaseSync) {
+  const csvPath = [path.join(process.cwd(), "arrivals.csv"), path.join(DATA_DIR, "arrivals.csv")].find((candidate) =>
+    fs.existsSync(candidate),
+  );
+  if (!csvPath) return;
+
+  const byGuest = db.prepare("SELECT id FROM users WHERE guest_id = ? OR id = ?");
+  const byPhone = db.prepare("SELECT id FROM users WHERE phone_key = ? AND phone_key != ''");
+  const insert = db.prepare(`
+    INSERT INTO users (
+      id, guest_id, name, name_key, email, phone, phone_key, college, gender, year, occupation,
+      role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
+      portfolio, bio, slug, approval_status, heard_from, signals, created_at
+    ) VALUES (?, ?, ?, ?, '', ?, ?, '', ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'approved', '', '[]', ?)
+  `);
+  const setGender = db.prepare("UPDATE users SET gender = ? WHERE id = ? AND gender != ?");
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  const now = new Date().toISOString();
+
+  db.exec("BEGIN");
+  try {
+    for (const row of parseCsv(fs.readFileSync(csvPath, "utf8"))) {
+      const name = cleanName(row.name || "");
+      const id = (row.guest_id || "").trim();
+      const phone = (row.phone_number || "").trim();
+      const key = phone ? phoneKey(phone) : "";
+      const gender = genderLabel(row.gender || "");
+      if (!name || !id || !key || !gender) {
+        skipped += 1;
+        continue;
+      }
+      const existing = byGuest.get(id, id) as { id: string } | undefined;
+      if (existing) {
+        setGender.run(gender, existing.id, gender);
+        updated += 1;
+        continue;
+      }
+      const clash = byPhone.get(key) as { id: string } | undefined;
+      if (clash) {
+        skipped += 1;
+        continue;
+      }
+      insert.run(id, id, name, normName(name), phone, key, gender, id, now);
+      added += 1;
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  console.log(`Arrivals: ${added} added, ${updated} already here, ${skipped} skipped.`);
+}
+
+const PUBLIC_TASKS = [
+  "Meet three people from colleges other than yours.",
+  "Confirm your two mentoring stalls before the stalls begin.",
+  "Learn the name of everyone on your team.",
+  "Visit two mentoring stalls and stay for one real conversation.",
+  "Sit with your team for the whole quiz.",
+  "Ask one question in Arthi's session.",
+  "Make a Notion page you can keep using after today.",
+  "Be in the closing group photo.",
+  "Collect your sticker sheet and put one sticker on something you carry.",
+  "Tell your team one thing you want to build this year.",
+];
+
+const SECRET_TASKS = [
+  "Ask one real question at your first stall, then tell the desk what they said.",
+  "Learn what one teammate from another college wants to build this year.",
+  "In the Notion workshop, make one page and show it to a teammate.",
+  "Introduce two people who do not know each other, and bring both names to the desk.",
+  "After Arthi's talk, write one sentence about an offer that almost worked on you.",
+  "Walk someone who has not picked stalls through confirming both choices.",
+  "Trade one sticker with someone from another team.",
+  "Be the person who says your team's answer out loud once during the quiz.",
+  "Ask one question at a stall that was not your first or second choice.",
+  "Get your whole team standing together before the group photo.",
+];
+
+function ensureTasks(db: DatabaseSync) {
+  const seeded = db.prepare("SELECT value FROM settings WHERE key = 'tasks_seed'").get() as { value: string } | undefined;
+  if (seeded?.value === "1") return;
+
+  const people = db
+    .prepare("SELECT id FROM users WHERE role = 'user' AND approval_status = 'approved' ORDER BY name_key, id")
+    .all() as { id: string }[];
+  const update = db.prepare("UPDATE users SET task = ?, secret_task = ? WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    people.forEach((person, index) => {
+      const task = PUBLIC_TASKS[(index + 3) % PUBLIC_TASKS.length];
+      const secret = SECRET_TASKS[index % SECRET_TASKS.length];
+      update.run(task, secret, person.id);
+    });
+    db.prepare(
+      "INSERT INTO settings (key, value) VALUES ('tasks_seed', '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    ).run();
+    db.prepare(
+      `INSERT INTO ledger (id, user_id, team_id, kind, delta, note, actor_id, created_at)
+       VALUES (?, NULL, NULL, 'task', 0, ?, 'admin', ?)`,
+    ).run(randomUUID(), `Assigned a public task and a secret task to ${people.length} approved guests.`, new Date().toISOString());
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  console.log(`Tasks: ${people.length} approved guests assigned.`);
 }
 
 function resolveDbPath(): string {
@@ -619,6 +737,8 @@ function ready(db: DatabaseSync) {
   if (!globalForDb.guestsImported) {
     importGuests(db);
     importGenders(db);
+    importArrivals(db);
+    ensureTasks(db);
     globalForDb.guestsImported = true;
   }
 }
@@ -709,7 +829,7 @@ export function getUserBySlug(slug: string): UserRow | null {
     .prepare(
       `SELECT u.id, u.name, u.college, u.year, u.occupation, u.slug, u.linkedin, u.instagram,
               u.github, u.discord, u.portfolio, u.bio, u.signals, u.points, u.dollars, u.team_id, u.role,
-              t.name AS team_name, t.color AS team_color
+              u.task, t.name AS team_name, t.color AS team_color
        FROM users u LEFT JOIN teams t ON t.id = u.team_id
        WHERE u.slug = ? AND u.role = 'user'`,
     )
@@ -810,8 +930,20 @@ export function listGoodies(includeInactive = false): GoodieRow[] {
   return getDb().prepare(sql).all() as GoodieRow[];
 }
 
-export function isSnackPass(name: string): boolean {
-  return name.toLowerCase().includes("snack");
+export function isScanPass(name: string): boolean {
+  const value = name.toLowerCase();
+  return value.includes("snack") || value.includes("sticker");
+}
+
+export function agendaCursor(): string {
+  const row = getDb().prepare("SELECT value FROM settings WHERE key = 'agenda_live'").get() as { value: string } | undefined;
+  return row?.value ?? "";
+}
+
+export function setAgendaCursor(value: string) {
+  getDb()
+    .prepare("INSERT INTO settings (key, value) VALUES ('agenda_live', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(value);
 }
 
 export function buyPass(id: string, actorId: string): "bought" | "already" | "refunded" | "missing" {

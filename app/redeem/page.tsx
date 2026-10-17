@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Card, Flash, btn } from "@/components/ui";
 import { redeem } from "@/lib/actions";
 import { requireUser } from "@/lib/auth";
-import { isSnackPass, listGoodies, listRedemptions } from "@/lib/db";
+import { isScanPass, listGoodies, listRedemptions } from "@/lib/db";
 import { requestOrigin } from "@/lib/origin";
 import { qrDataUrl } from "@/lib/qr";
 
@@ -19,9 +19,9 @@ export default async function RedeemPage({
   const goodies = listGoodies();
   const mine = listRedemptions(user.id).filter((item) => item.status === "claimed" || item.status === "collected");
   const origin = await requestOrigin();
-  const snackPasses = await Promise.all(
+  const scanPasses = await Promise.all(
     mine
-      .filter((item) => isSnackPass(item.goodie_name))
+      .filter((item) => isScanPass(item.goodie_name))
       .map(async (item) => ({
         ...item,
         qr: await qrDataUrl(`${origin}/pass/${item.id}`),
@@ -44,7 +44,7 @@ export default async function RedeemPage({
       <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {goodies.map((goodie) => {
           const free = goodie.cost === 0;
-          const passes = snackPasses.filter((item) => item.goodie_id === goodie.id);
+          const passes = scanPasses.filter((item) => item.goodie_id === goodie.id);
           const claimed = free && passes.some((item) => item.status === "claimed" || item.status === "collected");
           const affordable = user.dollars >= goodie.cost;
           const available = goodie.stock > 0 && !claimed;
@@ -89,7 +89,7 @@ export default async function RedeemPage({
                     <div key={pass.id} className="border-[1.6px] border-ink bg-paper p-3 text-center">
                       <img src={pass.qr} alt={`QR for ${user.name}'s ${pass.goodie_name}`} className="mx-auto w-full max-w-[220px]" />
                       <p className="mt-2 text-sm font-bold">
-                        {pass.status === "collected" ? "Already bought" : "Show this QR at the snack counter"}
+                        {pass.status === "collected" ? "Already bought" : "Show this QR to be scanned"}
                       </p>
                     </div>
                   ))}
@@ -105,7 +105,7 @@ export default async function RedeemPage({
         {mine.length ? (
           <ul className="mt-4 divide-y-[1.6px] divide-ink border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
             {mine.map((item) => {
-              const pass = snackPasses.find((entry) => entry.id === item.id);
+              const pass = scanPasses.find((entry) => entry.id === item.id);
               return (
                 <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="font-bold">

@@ -169,6 +169,44 @@ const ZONE = "Asia/Kolkata";
 
 export type SessionState = "done" | "now" | "next" | "later";
 
+export function manualState(sessionId: string, cursor: string): SessionState | null {
+  if (!cursor) return null;
+  const index = AGENDA.findIndex((session) => session.id === sessionId);
+  if (cursor === "done") return "done";
+  if (cursor === "before") return index === 0 ? "next" : "later";
+  const live = AGENDA.findIndex((session) => session.id === cursor);
+  if (live < 0) return null;
+  if (index < live) return "done";
+  if (index === live) return "now";
+  if (index === live + 1) return "next";
+  return "later";
+}
+
+export function manualHeadline(cursor: string): { label: string; title: string; detail: string } | null {
+  if (!cursor) return null;
+  if (cursor === "done") {
+    return {
+      label: "Done",
+      title: "That's the day.",
+      detail: "Every session on the agenda has finished.",
+    };
+  }
+  if (cursor === "before") {
+    return {
+      label: "Up next",
+      title: AGENDA[0].title,
+      detail: "Waiting for the room to start",
+    };
+  }
+  const current = AGENDA.find((session) => session.id === cursor);
+  if (!current) return null;
+  return {
+    label: "Happening now",
+    title: current.title,
+    detail: "This is the live session",
+  };
+}
+
 export function sessionState(session: AgendaSession, now: number, nextId: string | null): SessionState {
   const start = Date.parse(session.start);
   const end = Date.parse(session.end);

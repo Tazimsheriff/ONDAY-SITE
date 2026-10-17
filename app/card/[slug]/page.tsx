@@ -42,6 +42,9 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
           <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[0.9] tracking-tight">{user.name}</h1>
           <p className="mt-3 text-lg">{[user.college || "College not added", user.year].filter(Boolean).join(" · ")}</p>
           {user.bio ? <p className="mt-4 border-l-[3px] border-ink pl-3 leading-relaxed">{user.bio}</p> : null}
+          {user.task ? (
+            <p className="mt-4 border-[1.6px] border-ink bg-[#d2ffb6] px-4 py-3 text-sm font-bold leading-relaxed">{user.task}</p>
+          ) : null}
 
           {scanned ? (
             <p className="mt-4 border-[1.6px] border-ink bg-mint px-3 py-2 text-sm font-bold">

@@ -30,15 +30,20 @@ export default async function PassPage({
 
   const ready = pass.status === "claimed";
   const used = pass.status === "collected";
+  const item = pass.goodie_name.toLowerCase().includes("sticker")
+    ? "sticker sheet"
+    : pass.goodie_name.toLowerCase().includes("snack")
+      ? "snack"
+      : pass.goodie_name;
   const label = justBought ? "Bought" : ready ? "Valid" : used ? "Already bought" : "Refunded";
   const color = justBought || ready ? "#d2ffb6" : "#ffc0b6";
   const detail = justBought
-    ? "Hand over the snack. Scanning this pass again will say already bought."
+    ? `Hand over the ${item}. Scanning this pass again will say already bought.`
     : ready
-      ? "Show this to an organizer. Their scan buys it once."
+      ? "Show this to an organizer. Their scan hands it over once."
       : used
-        ? "This pass was already bought. Don't hand over another."
-        : "This pass was given back before it was bought.";
+        ? `This pass was already bought. Don't hand over another ${item}.`
+        : "This pass was given back before it was scanned.";
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12">

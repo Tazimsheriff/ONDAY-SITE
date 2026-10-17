@@ -8,5 +8,6 @@ data/*.db-wal
 data/*.db-shm
 data/*.csv
 guests.csv
+arrivals.csv
 *.tsbuildinfo
 next-env.d.ts
