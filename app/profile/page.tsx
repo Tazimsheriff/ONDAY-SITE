@@ -47,9 +47,14 @@ export default async function ProfilePage({
               This QR currently points at this computer only. Open the site from your network address, like http://192.168.x.x:3000, and the code will update.
             </p>
           ) : null}
-          <a className={`${btn("paper")} mt-4`} href={preview}>
-            Preview card
-          </a>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link className={btn("ink")} href="/scan">
+              Scan someone&apos;s QR
+            </Link>
+            <a className={btn("paper")} href={preview}>
+              Preview card
+            </a>
+          </div>
         </div>
         <ul className="mt-6 space-y-2 text-sm">
           {socials.map(([label, href, raw]) => (
@@ -70,7 +75,7 @@ export default async function ProfilePage({
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-sm">Nobody has scanned you yet. Hold up the QR.</p>
+            <p className="mt-2 text-sm">Nobody here yet. Scan a QR from the site, or hold yours up for someone who is signed in.</p>
           )}
         </div>
       </div>

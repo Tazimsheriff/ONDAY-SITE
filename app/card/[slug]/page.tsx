@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Eyebrow, btn } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
-import { areConnected, getUserBySlug, recordConnection } from "@/lib/db";
+import { getUserBySlug, hasScanned, recordConnection } from "@/lib/db";
 import { discordHandle, hrefFor, parseSignals, teamColor } from "@/lib/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,8 +17,11 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
   if (!user) notFound();
   const viewer = await getSessionUser();
   const mine = viewer?.id === user.id;
-  if (viewer?.role === "user" && !mine) recordConnection(viewer.id, user.id);
-  const connected = Boolean(viewer && !mine && viewer.role === "user" && areConnected(viewer.id, user.id));
+  let repeat = false;
+  if (viewer && viewer.role === "user" && !mine) {
+    repeat = hasScanned(viewer.id, user.id);
+    if (!repeat) recordConnection(viewer.id, user.id);
+  }
   const color = teamColor(user.team_color || "butter");
   const signals = parseSignals(user.signals);
   const links = [
@@ -39,13 +42,20 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
         </div>
         <div className="px-5 py-6">
           {mine ? <Eyebrow color="#ffd966">This is your card</Eyebrow> : <Eyebrow>You scanned</Eyebrow>}
-          <h1 className="mt-4 font-display text-5xl font-extrabold leading-[0.9] tracking-tight">{user.name}</h1>
+          <h1 className="mt-4 break-words font-display text-5xl font-extrabold leading-[0.9] tracking-tight">{user.name}</h1>
           <p className="mt-3 text-lg">{[user.college || "College not added", user.year].filter(Boolean).join(" · ")}</p>
           {user.bio ? <p className="mt-4 border-l-[3px] border-ink pl-3 leading-relaxed">{user.bio}</p> : null}
 
-          {connected ? (
+          {repeat ? (
+            <p className="mt-4 border-[1.6px] border-ink bg-peach px-3 py-2 text-sm font-bold">
+              You already scanned {user.name}. The same card doesn&apos;t count again.
+            </p>
+          ) : viewer?.role === "user" && !mine ? (
             <p className="mt-4 border-[1.6px] border-ink bg-mint px-3 py-2 text-sm font-bold">
-              You&apos;re connected with {user.name}.
+              You&apos;re connected with {user.name}. They&apos;re on your account.{" "}
+              <Link className="underline" href="/dashboard">
+                See your desk
+              </Link>
             </p>
           ) : null}
 

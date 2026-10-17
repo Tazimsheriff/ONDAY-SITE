@@ -4,9 +4,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start -H 0.0.0.0"
+  },
+  "engines": {
+    "node": "24.x"
   },
   "dependencies": {
+    "html5-qrcode": "^2.3.8",
     "next": "latest",
     "qrcode": "latest",
     "react": "latest",

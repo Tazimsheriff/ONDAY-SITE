@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, Eyebrow, btn } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { leaderboard } from "@/lib/db";
+import { leaderboard, listConnections } from "@/lib/db";
 import { requestOrigin } from "@/lib/origin";
 import { qrDataUrl } from "@/lib/qr";
 import { teamColor } from "@/lib/format";
@@ -30,12 +30,13 @@ export default async function DashboardPage() {
   const qr = await qrDataUrl(cardUrl);
   const local = origin.includes("localhost") || origin.includes("127.0.0.1");
   const linksReady = Boolean(user.linkedin || user.instagram || user.github || user.discord);
+  const connections = listConnections(user.id);
   const color = teamColor(user.team_color || "butter");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <p className="text-xs font-bold uppercase tracking-[0.18em]">Class 101 desk</p>
-      <h1 className="mt-2 font-display text-5xl font-extrabold tracking-tight sm:text-6xl">Hey, {firstName(user.name)}.</h1>
+      <h1 className="mt-2 break-words font-display text-4xl font-extrabold tracking-tight sm:text-6xl">Hey, {firstName(user.name)}.</h1>
       <p className="mt-2 text-lg">
         {[user.college, user.year, user.team_name].filter(Boolean).join(" · ") || "Your card is still mostly blank."}
       </p>
@@ -87,7 +88,10 @@ export default async function DashboardPage() {
           <Card color="#fefcf5" className="text-center">
             <p className="text-xs font-bold uppercase tracking-[0.16em]">Your QR</p>
             <img src={qr} alt={`QR code for ${user.name}`} className="mx-auto mt-3 w-full max-w-[260px] border-[1.6px] border-ink bg-paper" />
-            <p className="mt-3 text-sm">Hold this up. Their camera opens your card.</p>
+            <p className="mt-3 text-sm">Hold this up, or scan theirs from the site.</p>
+            <Link className={`${btn("ink")} mt-4 w-full`} href="/scan">
+              Scan someone&apos;s QR
+            </Link>
             {local ? (
               <p className="mt-3 border-[1.6px] border-ink bg-peach px-3 py-2 text-left text-xs leading-relaxed">
                 This QR currently points at this computer only. Open the site from your network address, like http://192.168.x.x:3000, and the code will update.
@@ -105,6 +109,24 @@ export default async function DashboardPage() {
                   : "On the board once the team scores."
                 : "You'll see your team here once it's allotted."}
             </p>
+          </Card>
+
+          <Card color="#fefcf5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em]">Connections</p>
+            {connections.length ? (
+              <ul className="mt-3 space-y-2 text-left text-sm">
+                {connections.map((person) => (
+                  <li key={person.id}>
+                    <Link className="font-bold underline-offset-2 hover:underline" href={`/card/${person.slug}`}>
+                      {person.name}
+                    </Link>
+                    <p className="text-xs">{[person.college, person.team_name].filter(Boolean).join(" · ") || "No college yet"}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm">Scan a QR from the site and they show up here, on your account.</p>
+            )}
           </Card>
 
           <Card color={linksReady ? "#d2ffb6" : "#ffc0b6"}>

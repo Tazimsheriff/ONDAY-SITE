@@ -8,9 +8,9 @@ export default function HomePage() {
 
   return (
     <div>
-      <section className="mx-auto max-w-6xl px-4 pb-8 pt-16 text-center sm:pt-24">
+      <section className="mx-auto max-w-6xl px-4 pb-8 pt-10 text-center sm:pt-24">
         <Eyebrow>First-year meetup</Eyebrow>
-        <h1 className="mx-auto mt-6 max-w-5xl font-display text-[clamp(3.4rem,11vw,7.6rem)] font-extrabold leading-[0.84] tracking-[-0.045em]">
+        <h1 className="mx-auto mt-6 max-w-5xl font-display text-[clamp(2.6rem,12vw,7.6rem)] font-extrabold leading-[0.84] tracking-[-0.045em]">
           Out of Syllabus
         </h1>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">

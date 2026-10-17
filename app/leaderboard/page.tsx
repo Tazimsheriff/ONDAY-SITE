@@ -41,7 +41,7 @@ export default async function LeaderboardPage() {
                       <span className="text-[11px] font-bold uppercase tracking-[0.14em]">marks</span>
                     </p>
                   </div>
-                  <p className="mt-3 text-sm">
+                  <p className="mt-3 break-words text-sm">
                     {members.length
                       ? members.map((member) => member.name).join(" · ")
                       : "No one allotted yet."}

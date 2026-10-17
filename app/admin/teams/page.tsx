@@ -55,7 +55,7 @@ export default async function TeamsPage({
                   {[10, 5, 1, -1, -5, -10].map((delta) => (
                     <button
                       key={delta}
-                      className="border-[1.6px] border-ink bg-cream px-2 py-1 text-xs font-bold shadow-[2px_2px_0_#0a0a0a]"
+                      className="min-h-10 min-w-10 border-[1.6px] border-ink bg-cream px-2.5 py-1.5 text-sm font-bold shadow-[2px_2px_0_#0a0a0a]"
                       formAction={adjustTeamPoints.bind(null, team.id, delta)}
                       type="submit"
                     >

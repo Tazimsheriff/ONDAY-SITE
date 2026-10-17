@@ -51,15 +51,26 @@ export async function requireAdmin(): Promise<UserRow> {
   return user;
 }
 
+const SESSION_MAX_AGE = 60 * 60 * 18;
+
+export function sessionCookie(userId: string) {
+  return {
+    name: COOKIE,
+    value: signSession(userId),
+    options: {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      path: "/",
+      maxAge: SESSION_MAX_AGE,
+      secure: process.env.NODE_ENV === "production",
+    },
+  };
+}
+
 export async function setSession(userId: string) {
   const jar = await cookies();
-  jar.set(COOKIE, signSession(userId), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 18,
-    secure: process.env.NODE_ENV === "production",
-  });
+  const cookie = sessionCookie(userId);
+  jar.set(cookie.name, cookie.value, cookie.options);
 }
 
 export async function clearSession() {

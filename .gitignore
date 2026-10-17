@@ -6,5 +6,6 @@ data/*.db-*
 data/*.db-wal
 data/*.db-shm
 data/*.csv
+guests.csv
 *.tsbuildinfo
 next-env.d.ts

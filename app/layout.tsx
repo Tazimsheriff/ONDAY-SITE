@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import { SiteFooter, SiteHeader } from "@/components/shell";
 import "./globals.css";
@@ -21,6 +21,13 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffd966",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

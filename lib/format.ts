@@ -103,6 +103,7 @@ export function teamColor(color: string): string {
 
 const FLASH: Record<string, string> = {
   mismatch: "That name and phone aren't on the list. Use the ones from your Luma registration.",
+  unavailable: "Sign-in didn't go through. Try once more.",
   saved: "Saved.",
   profile: "Profile saved. Your QR is ready.",
   redeemed: "Redeemed. Show this to the organizers when you collect it.",

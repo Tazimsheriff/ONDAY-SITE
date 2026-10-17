@@ -18,7 +18,7 @@ export default async function SignupPage({
   if (user) redirect(user.role === "admin" ? "/admin" : next || "/dashboard");
 
   return (
-    <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 lg:grid-cols-[1fr_0.9fr]">
+    <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-8 sm:gap-10 sm:py-16 lg:grid-cols-[1fr_0.9fr]">
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.18em]">Class 101 · Out of Syllabus</p>
         <h1 className="mt-3 font-display text-5xl font-extrabold leading-[0.9] tracking-tight sm:text-7xl">

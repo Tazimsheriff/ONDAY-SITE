@@ -6,7 +6,7 @@ import { cleanName, normName, phoneKey } from "./format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
-const globalForDb = globalThis as unknown as { eventDb?: DatabaseSync };
+const globalForDb = globalThis as unknown as { eventDb?: DatabaseSync; guestsImported?: boolean };
 
 export type UserRow = {
   id: string;
@@ -246,13 +246,6 @@ function seed(db: DatabaseSync) {
   const insertGoodie = db.prepare(
     "INSERT INTO goodies (id, name, description, cost, stock, active) VALUES (?, ?, ?, ?, ?, 1)",
   );
-  const insertUser = db.prepare(`
-    INSERT INTO users (
-      id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
-      role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
-      portfolio, bio, slug, approval_status, heard_from, signals, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, ?, ?, ?, ?)
-  `);
 
   db.exec("BEGIN");
   try {
@@ -283,44 +276,6 @@ function seed(db: DatabaseSync) {
       )
     `).run(adminPassword, adminPassword.toLowerCase(), now);
 
-    const csvPath = path.join(DATA_DIR, "guests.csv");
-    if (fs.existsSync(csvPath)) {
-      const records = parseCsv(fs.readFileSync(csvPath, "utf8"));
-      for (const record of records) {
-        const name = cleanName(record.name || "");
-        const guestId = (record.guest_id || "").trim();
-        if (!name || !guestId) continue;
-        const phone = (record.phone_number || "").trim();
-        const signals = [
-          pick(record, "Jack of All Trades"),
-          pick(record, "Stage or Behind"),
-          pick(record, "iPhone or Android"),
-          pick(record, "Batman or Spider"),
-          pick(record, "Solo Trip"),
-          pick(record, "Win the Game"),
-          pick(record, "People or Places"),
-        ].filter(Boolean);
-
-        insertUser.run(
-          guestId,
-          guestId,
-          name,
-          normName(name),
-          (record.email || "").trim(),
-          phone,
-          phone ? phoneKey(phone) : "",
-          pick(record, "College/Company"),
-          pick(record, "year do you belong"),
-          pick(record, "Occupation"),
-          guestId,
-          (record.approval_status || "").trim(),
-          pick(record, "hear about"),
-          JSON.stringify(signals),
-          record.created_at || now,
-        );
-      }
-    }
-
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -344,6 +299,153 @@ function ensureDemo(db: DatabaseSync) {
   ).run(phone, phone, new Date().toISOString());
 }
 
+type GuestDraft = {
+  id: string;
+  name: string;
+  nameKey: string;
+  email: string;
+  phone: string;
+  phoneKey: string;
+  college: string;
+  year: string;
+  occupation: string;
+  status: string;
+  heard: string;
+  signals: string;
+  createdAt: string;
+};
+
+function guestDraft(record: Record<string, string>, fallbackTime: string): GuestDraft | null {
+  const name = cleanName(record.name || "");
+  const id = (record.guest_id || "").trim();
+  if (!name || !id) return null;
+  const phone = (record.phone_number || "").trim();
+  const signals = [
+    pick(record, "Jack of All Trades"),
+    pick(record, "Stage or Behind"),
+    pick(record, "iPhone or Android"),
+    pick(record, "Batman or Spider"),
+    pick(record, "Solo Trip"),
+    pick(record, "Win the Game"),
+    pick(record, "People or Places"),
+  ].filter(Boolean);
+  return {
+    id,
+    name,
+    nameKey: normName(name),
+    email: (record.email || "").trim(),
+    phone,
+    phoneKey: phone ? phoneKey(phone) : "",
+    college: pick(record, "College/Company"),
+    year: pick(record, "year do you belong"),
+    occupation: pick(record, "Occupation"),
+    status: (record.approval_status || "").trim(),
+    heard: pick(record, "hear about"),
+    signals: JSON.stringify(signals),
+    createdAt: record.created_at || fallbackTime,
+  };
+}
+
+function importGuests(db: DatabaseSync) {
+  const csvPath = [path.join(DATA_DIR, "guests.csv"), path.join(process.cwd(), "guests.csv")].find((candidate) =>
+    fs.existsSync(candidate),
+  );
+  if (!csvPath) {
+    console.log("Guest list file was not on this host.");
+    return;
+  }
+
+  const drafts = parseCsv(fs.readFileSync(csvPath, "utf8"))
+    .map((record) => guestDraft(record, new Date().toISOString()))
+    .filter((draft): draft is GuestDraft => Boolean(draft));
+
+  const kept = new Map<string, GuestDraft>();
+  const seenLogin = new Set<string>();
+  for (const draft of drafts.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    if (kept.has(draft.id)) continue;
+    if (draft.phoneKey) {
+      const login = `${draft.nameKey}\n${draft.phoneKey}`;
+      if (seenLogin.has(login)) continue;
+      seenLogin.add(login);
+    }
+    kept.set(draft.id, draft);
+  }
+
+  const findByGuest = db.prepare("SELECT id FROM users WHERE guest_id = ? OR id = ?");
+  const findLoginClash = db.prepare(
+    "SELECT id FROM users WHERE phone_key = ? AND name_key = ? AND id != ? AND phone_key != ''",
+  );
+  const insert = db.prepare(`
+    INSERT INTO users (
+      id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
+      role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
+      portfolio, bio, slug, approval_status, heard_from, signals, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, ?, ?, ?, ?)
+  `);
+  const update = db.prepare(`
+    UPDATE users
+    SET name = ?, name_key = ?, email = ?, phone = ?, phone_key = ?, college = ?, year = ?,
+        occupation = ?, approval_status = ?, heard_from = ?, signals = ?
+    WHERE id = ?
+  `);
+
+  let added = 0;
+  let updated = 0;
+  let skipped = 0;
+  db.exec("BEGIN");
+  try {
+    for (const draft of kept.values()) {
+      const existing = findByGuest.get(draft.id, draft.id) as { id: string } | undefined;
+      const clash = findLoginClash.get(draft.phoneKey, draft.nameKey, existing?.id ?? "") as { id: string } | undefined;
+      if (clash) {
+        skipped += 1;
+        continue;
+      }
+      if (existing) {
+        update.run(
+          draft.name,
+          draft.nameKey,
+          draft.email,
+          draft.phone,
+          draft.phoneKey,
+          draft.college,
+          draft.year,
+          draft.occupation,
+          draft.status,
+          draft.heard,
+          draft.signals,
+          existing.id,
+        );
+        updated += 1;
+        continue;
+      }
+      insert.run(
+        draft.id,
+        draft.id,
+        draft.name,
+        draft.nameKey,
+        draft.email,
+        draft.phone,
+        draft.phoneKey,
+        draft.college,
+        draft.year,
+        draft.occupation,
+        draft.id,
+        draft.status,
+        draft.heard,
+        draft.signals,
+        draft.createdAt,
+      );
+      added += 1;
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+  console.log(`Guest list: ${added} added, ${updated} updated, ${skipped} skipped.`);
+}
+
 function ensureColumns(db: DatabaseSync) {
   const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!columns.some((column) => column.name === "discord")) {
@@ -361,21 +463,44 @@ function ensureColumns(db: DatabaseSync) {
 }
 
 function resolveDbPath(): string {
-  // Vercel’s app directory is read-only. /tmp is the only place a file can be created.
-  const dir = process.env.VERCEL ? path.join("/tmp", "class101") : DATA_DIR;
+  // Railway: keep the database on the mounted volume so redeploys do not wipe logins and points.
+  // Vercel’s app directory is read-only, so that host can only write under /tmp.
+  const dir = process.env.RAILWAY_VOLUME_MOUNT_PATH
+    ? process.env.RAILWAY_VOLUME_MOUNT_PATH
+    : process.env.VERCEL
+      ? path.join("/tmp", "class101")
+      : DATA_DIR;
   fs.mkdirSync(dir, { recursive: true });
   return path.join(dir, "event.db");
 }
 
+function openDb(): DatabaseSync {
+  const db = new DatabaseSync(resolveDbPath());
+  createSchema(db);
+  seed(db);
+  return db;
+}
+
 export function getDb(): DatabaseSync {
-  if (!globalForDb.eventDb) {
-    const db = new DatabaseSync(resolveDbPath());
-    createSchema(db);
-    seed(db);
-    globalForDb.eventDb = db;
+  if (!globalForDb.eventDb) globalForDb.eventDb = openDb();
+  try {
+    globalForDb.eventDb.prepare("SELECT 1").get();
+  } catch (error) {
+    console.error("Reopening the event database", error);
+    try {
+      globalForDb.eventDb.close();
+    } catch {
+      /* already closed */
+    }
+    globalForDb.eventDb = openDb();
+    globalForDb.guestsImported = false;
   }
   ensureColumns(globalForDb.eventDb);
   ensureDemo(globalForDb.eventDb);
+  if (!globalForDb.guestsImported) {
+    importGuests(globalForDb.eventDb);
+    globalForDb.guestsImported = true;
+  }
   return globalForDb.eventDb;
 }
 
@@ -567,6 +692,14 @@ export type ConnectionPerson = {
   team_name: string | null;
   created_at: string;
 };
+
+export function hasScanned(scannerId: string, ownerId: string): boolean {
+  if (!scannerId || !ownerId) return false;
+  const row = getDb()
+    .prepare("SELECT id FROM connections WHERE scanner_id = ? AND owner_id = ?")
+    .get(scannerId, ownerId);
+  return Boolean(row);
+}
 
 export function recordConnection(scannerId: string, ownerId: string): boolean {
   if (!scannerId || !ownerId || scannerId === ownerId) return false;

@@ -35,12 +35,18 @@
 
   html {
     scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     margin: 0;
     background: var(--cream);
     color: var(--ink);
+    overflow-x: clip;
+    overflow-wrap: anywhere;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   button,
@@ -63,9 +69,11 @@
 
 .field {
   width: 100%;
+  max-width: 100%;
   border: 1.6px solid var(--ink);
   background: var(--paper);
   padding: 0.8rem 0.9rem;
+  font-size: 16px;
   outline: none;
   box-shadow: 0 0 0 var(--ink);
 }
@@ -100,6 +108,32 @@
   }
   to {
     transform: translateX(-50%);
+  }
+}
+
+#qr-reader {
+  border: none !important;
+}
+
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+}
+
+#qr-reader__dashboard,
+#qr-reader__header_message {
+  display: none !important;
+}
+
+@media (max-width: 639px) {
+  h1 {
+    font-size: clamp(2.15rem, 11vw, 2.75rem);
+    line-height: 0.95;
+    overflow-wrap: anywhere;
+  }
+
+  .press {
+    min-height: 44px;
   }
 }
 
