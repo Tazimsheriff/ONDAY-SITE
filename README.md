@@ -2,6 +2,8 @@
 
 Sapiens Campus first-year freshers meetup. Each person gets a desk with a task, a secret task, a team, and Sapien Dollars. Scanning a card connects two people. Admins allot teams, award points, and run the goodie counter.
 
+[![Architecture diagram of tazimsheriff/onday-site](https://gitdiagram.com/tazimsheriff/onday-site/diagram.png)](https://gitdiagram.com/tazimsheriff/onday-site?utm_source=readme&utm_medium=picture)
+
 ## Live site
 
 - Railway (database kept on a volume): https://onday-site-production-47b3.up.railway.app
