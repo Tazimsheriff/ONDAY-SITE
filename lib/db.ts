@@ -635,14 +635,10 @@ function guard(db: DatabaseSync): DatabaseSync {
 }
 
 export function getDb(): DatabaseSync {
-  if (!globalForDb.eventDb) globalForDb.eventDb = openDb();
-  try {
-    globalForDb.eventDb.prepare("SELECT 1").get();
-  } catch (error) {
-    if (!connectionClosed(error)) throw error;
-    reopenRaw();
+  if (!globalForDb.eventDb) {
+    globalForDb.eventDb = openDb();
+    ready(globalForDb.eventDb);
   }
-  ready(globalForDb.eventDb);
   return guard(globalForDb.eventDb);
 }
 
@@ -866,6 +862,17 @@ function withRanks<T extends { marks?: number; points?: number }>(
     }
     return { ...row, rank: lastRank };
   });
+}
+
+export function personRank(points: number, nameKey: string): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) + 1 AS rank
+       FROM users
+       WHERE role = 'user' AND (points > ? OR (points = ? AND name_key < ?))`,
+    )
+    .get(points, points, nameKey) as { rank: number };
+  return Number(row.rank);
 }
 
 export function leaderboard(): { teams: RankedTeam[]; people: RankedPerson[] } {

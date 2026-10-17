@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { canLogin, getDb, getUserById, type UserRow } from "./db";
 
 const COOKIE = "sc_session";
@@ -34,7 +35,7 @@ export function readSession(token: string | undefined): { userId: string; sessio
   return { userId, sessionVersion };
 }
 
-export async function getSessionUser(): Promise<UserRow | null> {
+export const getSessionUser = cache(async (): Promise<UserRow | null> => {
   const jar = await cookies();
   const session = readSession(jar.get(COOKIE)?.value);
   if (!session) return null;
@@ -42,7 +43,7 @@ export async function getSessionUser(): Promise<UserRow | null> {
   if (!user || !canLogin(user)) return null;
   if ((user.session_version ?? 0) !== session.sessionVersion) return null;
   return user;
-}
+});
 
 export async function requireUser(): Promise<UserRow> {
   const user = await getSessionUser();

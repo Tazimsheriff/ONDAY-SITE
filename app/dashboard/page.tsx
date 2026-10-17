@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, Eyebrow, btn } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
-import { leaderboard, listConnections } from "@/lib/db";
+import { listConnections, listTeams, personRank } from "@/lib/db";
 import { requestOrigin } from "@/lib/origin";
 import { qrDataUrl } from "@/lib/qr";
 import { teamColor } from "@/lib/format";
@@ -27,9 +27,11 @@ export default async function DashboardPage() {
     );
   }
 
-  const board = leaderboard();
-  const mine = board.people.find((person) => person.id === user.id);
-  const team = board.teams.find((entry) => entry.id === user.team_id);
+  const teams = listTeams();
+  const team = teams.find((entry) => entry.id === user.team_id);
+  const teamMarks = team?.marks ?? 0;
+  const teamRank = team && teamMarks > 0 ? teams.filter((entry) => (entry.marks ?? 0) > teamMarks).length + 1 : null;
+  const rank = user.points > 0 ? personRank(user.points, user.name_key) : null;
   const origin = await requestOrigin();
   const cardUrl = `${origin}/card/${user.slug}`;
   const qr = await qrDataUrl(cardUrl);
@@ -76,7 +78,7 @@ export default async function DashboardPage() {
               <p className="text-xs font-bold uppercase tracking-[0.16em]">Points</p>
               <p className="mt-2 font-display text-5xl font-extrabold leading-none">{user.points}</p>
               <p className="mt-2 text-sm">
-                {mine && (user.points > 0 || mine.rank > 1) ? `Individual rank #${mine.rank}` : "No points yet"}
+                {rank ? `Individual rank #${rank}` : "No points yet"}
               </p>
             </Card>
             <Card color="#b6eaff">
@@ -112,8 +114,8 @@ export default async function DashboardPage() {
             <p className="mt-2 font-display text-4xl font-extrabold leading-none">{user.team_name || "Unassigned"}</p>
             <p className="mt-2 text-sm">
               {team
-                ? (team.marks ?? 0) > 0
-                  ? `Team rank #${team.rank} · ${team.marks} marks`
+                ? teamRank
+                  ? `Team rank #${teamRank} · ${teamMarks} marks`
                   : "On the board once the team scores."
                 : "You'll see your team here once it's allotted."}
             </p>

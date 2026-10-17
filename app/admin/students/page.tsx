@@ -117,52 +117,7 @@ export default async function StudentsPage({
         </form>
       </div>
 
-      <ul className="mt-6 grid gap-3 md:hidden">
-        {students.map((student) => (
-          <li key={student.id} className="border-[1.6px] border-ink bg-paper p-3 shadow-[4px_4px_0_#0a0a0a]">
-            <Link className="font-display text-2xl font-extrabold underline-offset-2 hover:underline" href={`/admin/students/${student.id}`}>
-              {student.name}
-            </Link>
-            <p className="mt-1 text-xs">{[student.college, student.year].filter(Boolean).join(" · ")}</p>
-            <div className="mt-2">
-              <GenderSelect userId={student.id} gender={student.gender} returnTo={returnTo} />
-            </div>
-            <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em]">{statusLabel(student.approval_status)}</p>
-            <p className="mt-2 font-mono text-sm">{student.phone_key ? formatPhone(student.phone_key) : "No phone"}</p>
-            <div className="mt-3">
-              <TeamSelect userId={student.id} teamId={student.team_id} teams={teams} returnTo={returnTo} />
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em]">Points</p>
-                <p className="font-display text-3xl font-extrabold leading-none">{student.points}</p>
-                <Score userId={student.id} kind="points" returnTo={returnTo} steps={[1, 5, 10]} minus={[-1, -5]} />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em]">Dollars</p>
-                <p className="font-display text-3xl font-extrabold leading-none">S${student.dollars}</p>
-                <Score userId={student.id} kind="dollars" returnTo={returnTo} steps={[10, 20, 50]} minus={[-10]} />
-              </div>
-            </div>
-            <form action={saveSecretTask} className="mt-3 grid gap-2">
-              <input type="hidden" name="userId" value={student.id} />
-              <input type="hidden" name="returnTo" value={returnTo} />
-              <textarea
-                name="secretTask"
-                defaultValue={student.secret_task}
-                rows={2}
-                placeholder="Secret task"
-                className="field py-2 text-base font-medium"
-              />
-              <button className="min-h-11 border-[1.6px] border-ink bg-lilac px-3 py-2 text-sm font-bold shadow-[2px_2px_0_#0a0a0a]" type="submit">
-                Save secret
-              </button>
-            </form>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-6 hidden overflow-x-auto border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a] md:block">
+      <div className="mt-6 overflow-x-auto border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
         <table className="w-full min-w-[860px] border-collapse text-left text-sm">
           <thead className="bg-yellow text-xs uppercase tracking-[0.12em]">
             <tr>
