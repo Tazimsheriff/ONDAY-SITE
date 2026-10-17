@@ -11,6 +11,7 @@ export type AgendaSession = {
   id: string;
   title: string;
   host: string;
+  photo?: string;
   linkedin: string;
   detail: string;
   expect: string;
@@ -34,6 +35,7 @@ export const AGENDA: AgendaSession[] = [
     id: "product",
     title: "Behind the Festive Season Sales",
     host: "Arthi",
+    photo: "/speakers/arthi.jpg",
     linkedin: "",
     detail: "The Art of Making You Want It",
     expect: "Arthi's talk on how festive-season sales are built to make you want something. You'll see the offers, the timing, and the feeling that you should buy it now.",

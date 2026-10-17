@@ -208,6 +208,13 @@ function SessionDialog({ session, onClose }: { session: AgendaSession | null; on
         </h2>
         {session.detail && !session.mentors?.length ? <p className="mt-2 text-lg font-semibold">{session.detail}</p> : null}
         {session.host ? <p className="mt-2 text-lg font-extrabold">{session.host}</p> : null}
+        {session.photo ? (
+          <img
+            src={session.photo}
+            alt={session.host || session.title}
+            className="mt-4 max-h-80 w-full rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] object-contain"
+          />
+        ) : null}
         <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">What to expect</p>
         <p className="mt-2 text-base leading-relaxed">{session.expect}</p>
         {session.mentors?.length ? (
