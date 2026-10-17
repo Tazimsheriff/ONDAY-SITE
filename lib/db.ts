@@ -589,6 +589,15 @@ export function getUserBySlug(slug: string): UserRow | null {
   return row ?? null;
 }
 
+export function canLogin(user: UserRow): boolean {
+  if (user.role === "admin") return true;
+  if (user.approval_status === "approved" || user.approval_status === "walk-in") return true;
+  if (user.approval_status === "demo") {
+    return process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO === "true";
+  }
+  return false;
+}
+
 export function findLogin(name: string, secret: string): UserRow | null {
   const typed = normName(name);
   const typedSecret = secret.trim().toLowerCase();
@@ -608,7 +617,20 @@ export function findLogin(name: string, secret: string): UserRow | null {
     return user.name_key.split(" ").includes(typed) && typed.length >= 3;
   });
 
-  return matches.length === 1 ? matches[0] : null;
+  const exact = matches.filter((user) => user.role === "admin" || user.name_key === typed);
+  const resolved = exact.length > 0 ? exact : matches;
+
+  if (resolved.length === 1) return resolved[0];
+  const samePerson =
+    resolved.length > 1 &&
+    resolved.every(
+      (user) =>
+        user.role === "user" &&
+        user.name_key === resolved[0].name_key &&
+        user.phone_key === resolved[0].phone_key,
+    );
+  if (!samePerson) return null;
+  return [...resolved].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0];
 }
 
 export function listStudents(): UserRow[] {

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getDb, getUserById, type UserRow } from "./db";
+import { canLogin, getDb, getUserById, type UserRow } from "./db";
 
 const COOKIE = "sc_session";
 
@@ -39,7 +39,7 @@ export async function getSessionUser(): Promise<UserRow | null> {
   const session = readSession(jar.get(COOKIE)?.value);
   if (!session) return null;
   const user = getUserById(session.userId);
-  if (!user) return null;
+  if (!user || !canLogin(user)) return null;
   if ((user.session_version ?? 0) !== session.sessionVersion) return null;
   return user;
 }

@@ -23,7 +23,7 @@ export default async function LoginPage({
           Come on in.
         </h1>
         <p className="mt-4 max-w-md text-lg leading-relaxed">
-          Use the name and phone number you were given. The phone number is the password.
+          Use the name and phone number from your Luma registration. Only approved guests can sign in. The phone number is the password.
         </p>
       </div>
       <form action="/api/login" method="post" className="border-[1.6px] border-ink bg-paper p-6 shadow-[6px_6px_0_#0a0a0a] sm:p-8">
@@ -47,9 +47,11 @@ export default async function LoginPage({
         <button className={`${btn("ink")} mt-5 w-full`} type="submit">
           Open my desk
         </button>
-        <p className="mt-4 text-sm">
-          Demo desk: name <span className="font-bold">Demo Sapien</span>, phone <span className="font-bold">9000000001</span>.
-        </p>
+        {process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO === "true" ? (
+          <p className="mt-4 text-sm">
+            Demo desk: name <span className="font-bold">Demo Sapien</span>, phone <span className="font-bold">9000000001</span>.
+          </p>
+        ) : null}
       </form>
     </div>
   );

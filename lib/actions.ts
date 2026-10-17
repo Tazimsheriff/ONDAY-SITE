@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { clearSession, requireAdmin, requireUser, setSession } from "./auth";
 import {
+  canLogin,
   findLogin,
   getDb,
   getUserById,
@@ -29,6 +30,7 @@ function touch() {
 export async function login(formData: FormData) {
   const user = findLogin(String(formData.get("name") || ""), String(formData.get("phone") || ""));
   if (!user) redirect("/login?error=mismatch");
+  if (!canLogin(user)) redirect("/login?error=unapproved");
   await setSession(user.id);
   const next = safeReturn(formData.get("next"), "");
   redirect(user.role === "admin" ? "/admin" : next || "/dashboard");

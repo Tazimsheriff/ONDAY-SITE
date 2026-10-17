@@ -111,6 +111,7 @@ export function genderLabel(raw: string): string {
 
 const FLASH: Record<string, string> = {
   mismatch: "That name and phone aren't on the list. Use the ones from your Luma registration.",
+  unapproved: "That registration isn't approved yet. Only approved guests can sign in.",
   unavailable: "Sign-in didn't go through. Try once more.",
   saved: "Saved.",
   profile: "Profile saved. Your QR is ready.",

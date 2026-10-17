@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sessionCookie } from "@/lib/auth";
-import { findLogin } from "@/lib/db";
+import { canLogin, findLogin } from "@/lib/db";
 import { safeReturn } from "@/lib/format";
 
 function publicUrl(request: Request, pathname: string, search = ""): URL {
@@ -24,6 +24,10 @@ export async function POST(request: Request) {
     const user = findLogin(String(form.get("name") || ""), String(form.get("phone") || ""));
     if (!user) {
       backSearch.set("error", "mismatch");
+      return NextResponse.redirect(publicUrl(request, "/login", backSearch.toString()), 303);
+    }
+    if (!canLogin(user)) {
+      backSearch.set("error", "unapproved");
       return NextResponse.redirect(publicUrl(request, "/login", backSearch.toString()), 303);
     }
 
