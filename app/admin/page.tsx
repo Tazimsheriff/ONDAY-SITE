@@ -62,6 +62,7 @@ export default function AdminPage() {
       <div className="mt-6 flex flex-wrap gap-3 text-sm font-bold">
         <Link className="underline" href="/admin/students">Award points</Link>
         <Link className="underline" href="/admin/teams">Allot teams</Link>
+        <Link className="underline" href="/admin/stalls">Send people to stalls</Link>
         <Link className="underline" href="/admin/goodies">Edit goodies</Link>
       </div>
     </div>

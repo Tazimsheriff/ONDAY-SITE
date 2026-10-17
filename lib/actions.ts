@@ -51,6 +51,7 @@ export async function saveStallPriorities(formData: FormData) {
   if (!stalls.has(one) || !stalls.has(two) || one === two) redirect("/agenda?error=stall");
   getDb().prepare("UPDATE users SET stall_one = ?, stall_two = ? WHERE id = ?").run(one, two, user.id);
   revalidatePath("/agenda");
+  revalidatePath("/admin/stalls");
   revalidatePath("/admin/students");
   revalidatePath(`/admin/students/${user.id}`);
   redirect("/agenda?notice=stalls");
