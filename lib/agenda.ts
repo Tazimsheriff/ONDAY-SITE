@@ -118,6 +118,15 @@ export const AGENDA: AgendaSession[] = [
         topics: ["AI"],
         linkedin: "",
       },
+      {
+        name: "Musha Ahamed R Y",
+        photo: "/mentors/musha.png",
+        role: "Indie founder, RedChecker",
+        about:
+          "Chennai-based indie founder and builder. He created RedChecker (redchecker.io), a Chrome extension that checks a subreddit's rules, tone, and risk before you post, and suggests related communities and trending topics. He launched it in July 2025 with Gowtham Raj and builds in public on X and Indie Hackers. He has been in business since age 15, through dropshipping, e-commerce, and digital marketing for brands.",
+        topics: ["Marketing"],
+        linkedin: "",
+      },
     ],
     start: "2026-10-18T11:30:00+05:30",
     end: "2026-10-18T13:30:00+05:30",

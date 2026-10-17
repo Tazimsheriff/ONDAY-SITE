@@ -373,8 +373,8 @@ function guestDraft(record: Record<string, string>, fallbackTime: string): Guest
 }
 
 function importGuests(db: DatabaseSync) {
-  const csvPath = [path.join(DATA_DIR, "guests.csv"), path.join(process.cwd(), "guests.csv")].find((candidate) =>
-    fs.existsSync(candidate),
+  const csvPath = [path.join(DATA_DIR, "guests.csv"), path.join(process.cwd(), "guests.csv"), path.join(process.cwd(), "guest-refresh.csv")].find(
+    (candidate) => fs.existsSync(candidate),
   );
   if (!csvPath) {
     console.log("Guest list file was not on this host.");
@@ -489,12 +489,27 @@ function importGuests(db: DatabaseSync) {
       );
       added += 1;
     }
+    const ids = [...kept.keys()];
+    let removed = 0;
+    if (ids.length) {
+      const marks = ids.map(() => "?").join(", ");
+      const result = db
+        .prepare(
+          `UPDATE users
+           SET approval_status = 'removed'
+           WHERE role = 'user'
+             AND approval_status = 'approved'
+             AND COALESCE(guest_id, id) NOT IN (${marks})`,
+        )
+        .run(...ids);
+      removed = Number(result.changes);
+    }
     db.exec("COMMIT");
+    console.log(`Guest list: ${added} added, ${updated} updated, ${skipped} skipped, ${removed} removed from login.`);
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
   }
-  console.log(`Guest list: ${added} added, ${updated} updated, ${skipped} skipped.`);
 }
 
 function ensureColumns(db: DatabaseSync) {
@@ -740,6 +755,64 @@ export function listGoodies(includeInactive = false): GoodieRow[] {
     ? "SELECT * FROM goodies ORDER BY cost, name"
     : "SELECT * FROM goodies WHERE active = 1 ORDER BY cost, name";
   return getDb().prepare(sql).all() as GoodieRow[];
+}
+
+export function isSnackPass(name: string): boolean {
+  return name.toLowerCase().includes("snack");
+}
+
+export function buyPass(id: string, actorId: string): "bought" | "already" | "refunded" | "missing" {
+  const db = getDb();
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = db.prepare("SELECT id, user_id, goodie_name, quantity, status FROM redemptions WHERE id = ?").get(id) as
+      | { id: string; user_id: string; goodie_name: string; quantity: number; status: string }
+      | undefined;
+    if (!row) {
+      db.exec("ROLLBACK");
+      return "missing";
+    }
+    if (row.status === "collected") {
+      db.exec("ROLLBACK");
+      return "already";
+    }
+    if (row.status !== "claimed") {
+      db.exec("ROLLBACK");
+      return "refunded";
+    }
+    const changed = db.prepare("UPDATE redemptions SET status = 'collected' WHERE id = ? AND status = 'claimed'").run(row.id);
+    if (!changed.changes) {
+      db.exec("ROLLBACK");
+      return "already";
+    }
+    writeLedger({
+      userId: row.user_id,
+      kind: "dollars",
+      delta: 0,
+      note: `Bought ${row.quantity || 1}x ${row.goodie_name}`,
+      actorId,
+    });
+    db.exec("COMMIT");
+    return "bought";
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* no open transaction */
+    }
+    throw error;
+  }
+}
+
+export function getRedemption(id: string): (RedemptionRow & { college: string }) | null {
+  const row = getDb()
+    .prepare(
+      `SELECT r.*, u.name AS user_name, u.college AS college
+       FROM redemptions r JOIN users u ON u.id = r.user_id
+       WHERE r.id = ?`,
+    )
+    .get(id) as (RedemptionRow & { college: string }) | undefined;
+  return row ?? null;
 }
 
 export function listRedemptions(userId?: string): RedemptionRow[] {

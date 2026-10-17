@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { logout } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
+import { NavLink } from "./nav-link";
 import { btn } from "./ui";
 
 export async function SiteHeader() {
@@ -32,32 +33,21 @@ export async function SiteHeader() {
         </Link>
         <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:col-auto sm:row-auto sm:justify-end sm:gap-5">
           <nav className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm font-medium">
-            <Link className="underline-offset-4 hover:underline" href="/agenda">
-              Agenda
-            </Link>
-            <Link className="underline-offset-4 hover:underline" href="/leaderboard">
-              Board
-            </Link>
+            <NavLink href="/agenda">Agenda</NavLink>
+            <NavLink href="/leaderboard">Board</NavLink>
             {user?.role === "user" ? (
               <>
-                <Link className="underline-offset-4 hover:underline" href="/dashboard">
-                  Desk
-                </Link>
-                <Link className="underline-offset-4 hover:underline" href="/scan">
-                  Scan
-                </Link>
-                <Link className="underline-offset-4 hover:underline" href="/redeem">
-                  Dollars
-                </Link>
-                <Link className="underline-offset-4 hover:underline" href="/profile">
-                  Profile
-                </Link>
+                <NavLink href="/dashboard">Desk</NavLink>
+                <NavLink href="/scan">Scan</NavLink>
+                <NavLink href="/redeem">Dollars</NavLink>
+                <NavLink href="/profile">Profile</NavLink>
               </>
             ) : null}
             {user?.role === "admin" ? (
-              <Link className="underline-offset-4 hover:underline" href="/admin">
-                Admin
-              </Link>
+              <>
+                <NavLink href="/scan">Scan</NavLink>
+                <NavLink href="/admin">Admin</NavLink>
+              </>
             ) : null}
           </nav>
           <div className="hidden sm:block">{account}</div>

@@ -1,5 +1,6 @@
+import { TeamPeoplePicker } from "@/components/team-people-picker";
 import { Flash, btn } from "@/components/ui";
-import { addPeopleToTeam, adjustTeamPoints, assignTeamsFromCsv, deleteTeam, removeFromTeam, saveTeam } from "@/lib/actions";
+import { adjustTeamPoints, assignTeamsFromCsv, deleteTeam, removeFromTeam, saveTeam } from "@/lib/actions";
 import { listStudents, listTeamMembers, listTeams } from "@/lib/db";
 import { TEAM_COLORS, teamColor } from "@/lib/format";
 
@@ -37,40 +38,21 @@ export default async function TeamsPage({
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <form action={addPeopleToTeam} className="border-[1.6px] border-ink bg-paper p-4 shadow-[4px_4px_0_#0a0a0a]">
-          <h2 className="font-display text-2xl font-extrabold">Add people already here</h2>
-          <p className="mt-1 text-sm">Pick a team and tick the people. Someone already on another team moves.</p>
-          <select name="teamId" required className="field mt-3" defaultValue="">
-            <option value="" disabled>
-              Choose a team
-            </option>
-            {teams.map((team) => (
-              <option key={team.id} value={team.id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-          <div className="mt-2 max-h-64 overflow-auto border-[1.6px] border-ink bg-cream">
-            {students.length ? (
-              students.map((student) => (
-                <label key={student.id} className="flex items-start gap-2 border-b border-ink/15 px-3 py-2 text-sm">
-                  <input type="checkbox" name="userId" value={student.id} className="mt-1" />
-                  <span className="min-w-0">
-                    <span className="block font-semibold">{student.name}</span>
-                    <span className="block text-xs">
-                      {[student.college || "No college", student.gender, student.team_name || "Unassigned"].filter(Boolean).join(" · ")}
-                    </span>
-                  </span>
-                </label>
-              ))
-            ) : (
-              <p className="px-3 py-3 text-sm">Nobody is on the list yet.</p>
-            )}
-          </div>
-          <button className={`${btn("ink")} mt-3`} type="submit">
-            Add to team
-          </button>
-        </form>
+        <TeamPeoplePicker
+          people={students.map((student) => ({
+            id: student.id,
+            name: student.name,
+            college: student.college,
+            gender: student.gender,
+            teamId: student.team_id,
+            teamName: student.team_name || "",
+          }))}
+          teams={teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            members: Number(team.members ?? 0),
+          }))}
+        />
 
         <form action={assignTeamsFromCsv} className="border-[1.6px] border-ink bg-lilac p-4 shadow-[4px_4px_0_#0a0a0a]">
           <h2 className="font-display text-2xl font-extrabold">Upload a CSV</h2>

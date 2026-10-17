@@ -51,9 +51,9 @@ export default async function ProfilePage({
             <Link className={btn("ink")} href="/scan">
               Scan someone&apos;s QR
             </Link>
-            <a className={btn("paper")} href={preview}>
-              Preview card
-            </a>
+            <Link className={btn("paper")} href={`/card/${user.slug}`}>
+              Show my card
+            </Link>
           </div>
         </div>
         <ul className="mt-6 space-y-2 text-sm">

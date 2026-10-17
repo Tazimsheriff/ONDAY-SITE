@@ -10,7 +10,9 @@ function slugFromScan(value: string): string | null {
   } catch {
     /* a bare path is fine */
   }
-  const match = path.match(/\/card\/([^/?#]+)/);
+  const card = path.match(/\/card\/([^/?#]+)/);
+  const pass = path.match(/\/pass\/([^/?#]+)/);
+  const match = card || pass;
   if (!match) return null;
   let slug = "";
   try {
@@ -19,16 +21,16 @@ function slugFromScan(value: string): string | null {
     return null;
   }
   if (!slug || slug.includes("/") || slug.includes("..") || slug.length > 80) return null;
-  return slug;
+  return `/${card ? "card" : "pass"}/${encodeURIComponent(slug)}`;
 }
 
-function openCard(slug: string) {
-  window.location.assign(`/card/${encodeURIComponent(slug)}`);
+function openScan(path: string) {
+  window.location.assign(path);
 }
 
-export function QrScanner() {
+export function QrScanner({ hint = "Point the camera at their Class 101 QR." }: { hint?: string }) {
   const handled = useRef(false);
-  const [message, setMessage] = useState("Point the camera at their Class 101 QR.");
+  const [message, setMessage] = useState(hint);
 
   useEffect(() => {
     let cancel = false;
@@ -45,13 +47,13 @@ export function QrScanner() {
           { fps: 8, qrbox: { width: 220, height: 220 } },
           (decoded) => {
             if (handled.current) return;
-            const slug = slugFromScan(decoded);
-            if (!slug) {
-              setMessage("That QR isn't a Class 101 card. Try the one on their desk.");
+            const target = slugFromScan(decoded);
+            if (!target) {
+              setMessage("That QR isn't a Class 101 card or snack pass.");
               return;
             }
             handled.current = true;
-            openCard(slug);
+            openScan(target);
           },
           () => undefined,
         );
@@ -72,13 +74,13 @@ export function QrScanner() {
     const instance = new Html5Qrcode("qr-file");
     try {
       const decoded = await instance.scanFile(file, false);
-      const slug = slugFromScan(decoded);
-      if (!slug) {
-        setMessage("That photo isn't a Class 101 card.");
+      const target = slugFromScan(decoded);
+      if (!target) {
+        setMessage("That photo isn't a Class 101 card or snack pass.");
         return;
       }
       handled.current = true;
-      openCard(slug);
+      openScan(target);
     } catch {
       setMessage("Couldn't read a QR in that photo.");
     } finally {

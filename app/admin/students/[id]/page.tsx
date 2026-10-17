@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Flash, btn } from "@/components/ui";
-import { saveStudent } from "@/lib/actions";
-import { getUserById, listLedger, listTeams } from "@/lib/db";
+import { grantGoodie, refundRedemption, refundUserGoodies, saveStudent } from "@/lib/actions";
+import { getUserById, listGoodies, listLedger, listRedemptions, listTeams } from "@/lib/db";
 import { formatPhone } from "@/lib/format";
 
 export const metadata = { title: "Edit Sapien" };
@@ -20,6 +20,9 @@ export default async function StudentEditPage({
   if (!user || user.role !== "user") notFound();
   const teams = listTeams();
   const ledger = listLedger(user.id, 8);
+  const goodies = listGoodies(true);
+  const held = listRedemptions(user.id).filter((item) => item.status === "claimed" || item.status === "collected");
+  const back = `/admin/students/${user.id}`;
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -31,7 +34,11 @@ export default async function StudentEditPage({
         <Flash error={flash.error} notice={flash.notice} />
       </div>
 
-      <form action={saveStudent} className="mt-6 grid gap-3 border-[1.6px] border-ink bg-paper p-5 shadow-[4px_4px_0_#0a0a0a]">
+      <form
+        key={[user.dollars, user.points, user.team_id, user.phone, user.college, user.gender, user.task, user.secret_task].join("|")}
+        action={saveStudent}
+        className="mt-6 grid gap-3 border-[1.6px] border-ink bg-paper p-5 shadow-[4px_4px_0_#0a0a0a]"
+      >
         <input type="hidden" name="userId" value={user.id} />
         <label className="text-sm font-bold">
           Team
@@ -79,6 +86,58 @@ export default async function StudentEditPage({
         </label>
         <button className={btn("ink")} type="submit">Save</button>
       </form>
+
+      <section className="mt-6 border-[1.6px] border-ink bg-paper p-5 shadow-[4px_4px_0_#0a0a0a]">
+        <h2 className="font-display text-2xl font-extrabold">Goodies</h2>
+        <p className="mt-1 text-sm">Give one back only before the counter scans it. A bought pass stays bought. Set their dollars in the form above.</p>
+        {held.length ? (
+          <ul className="mt-4 divide-y-[1.6px] divide-ink border-[1.6px] border-ink">
+            {held.map((item) => (
+              <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-3 text-sm">
+                <span>
+                  <span className="font-bold">{item.quantity > 1 ? `${item.quantity}× ` : "1× "}{item.goodie_name}</span>
+                  {" · "}S${item.cost * (item.quantity || 1)}
+                  {" · "}{item.status === "collected" ? "Bought" : "Not scanned yet"}
+                </span>
+                {item.status === "claimed" ? (
+                  <form action={refundRedemption}>
+                    <input type="hidden" name="redemptionId" value={item.id} />
+                    <input type="hidden" name="returnTo" value={back} />
+                    <button className={btn("paper", "px-3 py-1.5")} type="submit">Give back</button>
+                  </form>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm">No goodies on this person.</p>
+        )}
+        {held.some((item) => item.status === "claimed") ? (
+          <form action={refundUserGoodies} className="mt-3">
+            <input type="hidden" name="userId" value={user.id} />
+            <button className={btn("yellow")} type="submit">Give back everything not scanned yet</button>
+          </form>
+        ) : null}
+        <form action={grantGoodie} className="mt-4 flex flex-wrap items-end gap-2">
+          <input type="hidden" name="userId" value={user.id} />
+          <label className="min-w-52 flex-1 text-sm font-bold">
+            Add a goodie
+            <select name="goodieId" className="field mt-1 font-medium" required defaultValue="">
+              <option value="" disabled>Choose one</option>
+              {goodies.map((goodie) => (
+                <option key={goodie.id} value={goodie.id}>
+                  {goodie.name} · {goodie.cost === 0 ? "Free" : `S$${goodie.cost}`} · {goodie.stock} left
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-bold">
+            How many
+            <input name="quantity" type="number" min={1} max={100} defaultValue={1} className="field mt-1 w-20 font-medium" />
+          </label>
+          <button className={btn("ink")} type="submit">Give this goodie</button>
+        </form>
+      </section>
 
       <section className="mt-6">
         <h2 className="font-display text-2xl font-extrabold">History</h2>

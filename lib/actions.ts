@@ -74,10 +74,10 @@ export async function redeem(formData: FormData) {
   const goodieId = String(formData.get("goodieId") || "");
   const quantity = Math.min(100, Math.max(1, integer(formData.get("quantity"), 1)));
   const db = getDb();
-  let failure: "stock" | "broke" | null = null;
+  let failure: "stock" | "broke" | "once" | null = null;
   let redeemed: { name: string; cost: number; quantity: number } | null = null;
 
-  db.exec("BEGIN");
+  db.exec("BEGIN IMMEDIATE");
   try {
     const goodie = db.prepare("SELECT * FROM goodies WHERE id = ? AND active = 1").get(goodieId) as
       | { id: string; name: string; cost: number; stock: number }
@@ -85,9 +85,18 @@ export async function redeem(formData: FormData) {
     const current = db.prepare("SELECT dollars FROM users WHERE id = ?").get(user.id) as
       | { dollars: number }
       | undefined;
+    const already = db
+      .prepare(
+        `SELECT COALESCE(SUM(quantity), 0) AS taken
+         FROM redemptions
+         WHERE user_id = ? AND goodie_id = ? AND status = 'claimed'`,
+      )
+      .get(user.id, goodieId) as { taken: number } | undefined;
+    const free = goodie?.cost === 0;
     const totalCost = goodie ? goodie.cost * quantity : 0;
 
     if (!goodie || !current || goodie.stock < quantity) failure = "stock";
+    else if (free && (quantity !== 1 || Number(already?.taken ?? 0) > 0)) failure = "once";
     else if (current.dollars < totalCost) failure = "broke";
     else {
       const spent = db
@@ -128,41 +137,209 @@ export async function redeem(formData: FormData) {
   redirect("/redeem?notice=redeemed");
 }
 
+type HeldRedemption = {
+  id: string;
+  user_id: string;
+  goodie_id: string;
+  goodie_name: string;
+  cost: number;
+  quantity: number;
+  status: string;
+};
+
+function withFlash(path: string, kind: "notice" | "error", code: string) {
+  return `${path}${path.includes("?") ? "&" : "?"}${kind}=${code}`;
+}
+
+function heldRedemptions(userId?: string): HeldRedemption[] {
+  const db = getDb();
+  if (userId) {
+    return db
+      .prepare(`SELECT * FROM redemptions WHERE user_id = ? AND status = 'claimed' ORDER BY created_at DESC`)
+      .all(userId) as HeldRedemption[];
+  }
+  return db
+    .prepare(`SELECT * FROM redemptions WHERE status = 'claimed' ORDER BY created_at DESC`)
+    .all() as HeldRedemption[];
+}
+
+function applyRefunds(rows: HeldRedemption[]) {
+  const db = getDb();
+  const done: Array<HeldRedemption & { refundAmount: number }> = [];
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const row of rows) {
+      const quantity = row.quantity || 1;
+      const refundAmount = row.cost * quantity;
+      const changed = db
+        .prepare(`UPDATE redemptions SET status = 'refunded' WHERE id = ? AND status = 'claimed'`)
+        .run(row.id);
+      if (!changed.changes) continue;
+      db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(refundAmount, row.user_id);
+      db.prepare("UPDATE goodies SET stock = stock + ? WHERE id = ?").run(quantity, row.goodie_id);
+      done.push({ ...row, quantity, refundAmount });
+    }
+    db.exec("COMMIT");
+    return done;
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* no open transaction */
+    }
+    throw error;
+  }
+}
+
 export async function refundRedemption(formData: FormData) {
   const admin = await requireAdmin();
   const redemptionId = String(formData.get("redemptionId") || "");
-  const db = getDb();
-  const redemption = db
-    .prepare("SELECT * FROM redemptions WHERE id = ?")
-    .get(redemptionId) as
-    | { id: string; user_id: string; goodie_id: string; goodie_name: string; cost: number; quantity: number; status: string }
-    | undefined;
+  const back = safeReturn(formData.get("returnTo"), "/admin/goodies");
+  const redemption = getDb().prepare("SELECT * FROM redemptions WHERE id = ?").get(redemptionId) as HeldRedemption | undefined;
+  if (!redemption) redirect(withFlash(back, "error", "missing"));
+  if (redemption.status === "collected") redirect(withFlash(back, "error", "bought"));
+  if (redemption.status !== "claimed") redirect(withFlash(back, "error", "missing"));
 
-  if (!redemption || redemption.status !== "claimed") redirect("/admin/goodies?error=missing");
-
-  const quantity = redemption.quantity || 1;
-  const refundAmount = redemption.cost * quantity;
-
-  db.exec("BEGIN");
-  try {
-    db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(refundAmount, redemption.user_id);
-    db.prepare("UPDATE goodies SET stock = stock + ? WHERE id = ?").run(quantity, redemption.goodie_id);
-    db.prepare("UPDATE redemptions SET status = 'refunded' WHERE id = ?").run(redemption.id);
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+  const done = applyRefunds([redemption]);
+  const item = done[0];
+  if (!item) redirect(withFlash(back, "error", "missing"));
 
   writeLedger({
-    userId: redemption.user_id,
+    userId: item.user_id,
     kind: "dollars",
-    delta: refundAmount,
-    note: `Refunded ${quantity}x ${redemption.goodie_name}`,
+    delta: item.refundAmount,
+    note: `Refunded ${item.quantity}x ${item.goodie_name}`,
     actorId: admin.id,
   });
   touch();
-  redirect("/admin/goodies?notice=refunded");
+  revalidatePath(`/admin/students/${item.user_id}`);
+  revalidatePath(`/pass/${item.id}`);
+  redirect(withFlash(back, "notice", "refunded"));
+}
+
+export async function refundUserGoodies(formData: FormData) {
+  const admin = await requireAdmin();
+  const user = await studentOrRedirect(String(formData.get("userId") || ""));
+  const back = `/admin/students/${user.id}`;
+  const done = applyRefunds(heldRedemptions(user.id));
+  if (!done.length) redirect(withFlash(back, "notice", "empty"));
+
+  for (const item of done) {
+    writeLedger({
+      userId: item.user_id,
+      kind: "dollars",
+      delta: item.refundAmount,
+      note: `Refunded ${item.quantity}x ${item.goodie_name}`,
+      actorId: admin.id,
+    });
+    revalidatePath(`/pass/${item.id}`);
+  }
+  touch();
+  revalidatePath(back);
+  redirect(withFlash(back, "notice", "returned"));
+}
+
+export async function refundEveryGoodie() {
+  const admin = await requireAdmin();
+  const done = applyRefunds(heldRedemptions());
+  if (!done.length) redirect("/admin/goodies?notice=empty");
+
+  for (const item of done) {
+    writeLedger({
+      userId: item.user_id,
+      kind: "dollars",
+      delta: item.refundAmount,
+      note: `Refunded ${item.quantity}x ${item.goodie_name}`,
+      actorId: admin.id,
+    });
+    revalidatePath(`/pass/${item.id}`);
+    revalidatePath(`/admin/students/${item.user_id}`);
+  }
+  touch();
+  redirect("/admin/goodies?notice=returned");
+}
+
+export async function grantGoodie(formData: FormData) {
+  const admin = await requireAdmin();
+  const user = await studentOrRedirect(String(formData.get("userId") || ""));
+  const goodieId = String(formData.get("goodieId") || "");
+  const quantity = Math.min(100, Math.max(1, integer(formData.get("quantity"), 1)));
+  const back = `/admin/students/${user.id}`;
+  const db = getDb();
+  let failure: "stock" | "broke" | "missing" | null = null;
+  let granted: { id: string; name: string; cost: number; quantity: number } | null = null;
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const goodie = db.prepare("SELECT * FROM goodies WHERE id = ?").get(goodieId) as
+      | { id: string; name: string; cost: number; stock: number }
+      | undefined;
+    const current = db.prepare("SELECT dollars FROM users WHERE id = ?").get(user.id) as { dollars: number } | undefined;
+    const totalCost = goodie ? goodie.cost * quantity : 0;
+    if (!goodie || !current) failure = "missing";
+    else if (goodie.stock < quantity) failure = "stock";
+    else if (current.dollars < totalCost) failure = "broke";
+    else {
+      const spent = db
+        .prepare("UPDATE users SET dollars = dollars - ? WHERE id = ? AND dollars >= ?")
+        .run(totalCost, user.id, totalCost);
+      const taken = db
+        .prepare("UPDATE goodies SET stock = stock - ? WHERE id = ? AND stock >= ?")
+        .run(quantity, goodie.id, quantity);
+      if (!spent.changes || !taken.changes) failure = "stock";
+      else {
+        const id = randomUUID();
+        db.prepare(
+          `INSERT INTO redemptions (id, user_id, goodie_id, goodie_name, cost, quantity, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'claimed', ?)`,
+        ).run(id, user.id, goodie.id, goodie.name, goodie.cost, quantity, new Date().toISOString());
+        granted = { id, name: goodie.name, cost: goodie.cost, quantity };
+        db.exec("COMMIT");
+      }
+    }
+    if (failure) db.exec("ROLLBACK");
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      /* no open transaction */
+    }
+    throw error;
+  }
+
+  if (failure || !granted) redirect(withFlash(back, "error", failure ?? "stock"));
+  writeLedger({
+    userId: user.id,
+    kind: "dollars",
+    delta: -granted.cost * granted.quantity,
+    note: `Gave ${granted.quantity}x ${granted.name}`,
+    actorId: admin.id,
+  });
+  touch();
+  revalidatePath(back);
+  revalidatePath(`/pass/${granted.id}`);
+  redirect(withFlash(back, "notice", "granted"));
+}
+
+export async function collectRedemption(formData: FormData) {
+  const admin = await requireAdmin();
+  const redemptionId = String(formData.get("redemptionId") || "");
+  const db = getDb();
+  const redemption = db.prepare("SELECT * FROM redemptions WHERE id = ?").get(redemptionId) as
+    | { id: string; user_id: string; goodie_name: string; quantity: number; status: string }
+    | undefined;
+  if (!redemption || redemption.status !== "claimed") redirect(`/pass/${redemptionId}?error=missing`);
+
+  db.prepare("UPDATE redemptions SET status = 'collected' WHERE id = ? AND status = 'claimed'").run(redemption.id);
+  writeLedger({
+    userId: redemption.user_id,
+    kind: "dollars",
+    delta: 0,
+    note: `Bought ${redemption.quantity || 1}x ${redemption.goodie_name}`,
+    actorId: admin.id,
+  });
+  touch();
+  redirect(`/pass/${redemption.id}?notice=collected`);
 }
 
 async function studentOrRedirect(userId: string): Promise<UserRow> {

@@ -1,5 +1,5 @@
 import { Flash, btn } from "@/components/ui";
-import { refundRedemption, saveGoodie } from "@/lib/actions";
+import { refundEveryGoodie, refundRedemption, saveGoodie } from "@/lib/actions";
 import { listGoodies, listRedemptions } from "@/lib/db";
 
 export const metadata = { title: "Goodies" };
@@ -50,7 +50,12 @@ export default async function GoodiesPage({
         ))}
       </div>
 
-      <h2 className="mt-10 font-display text-3xl font-extrabold">Claims</h2>
+      <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
+        <h2 className="font-display text-3xl font-extrabold">Claims</h2>
+        <form action={refundEveryGoodie}>
+          <button className={btn("yellow")} type="submit">Give back every pass that has not been scanned</button>
+        </form>
+      </div>
       <ul className="mt-3 divide-y-[1.6px] divide-ink border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
         {redemptions.length ? (
           redemptions.map((item) => (
@@ -61,10 +66,10 @@ export default async function GoodiesPage({
               {item.status === "claimed" ? (
                 <form action={refundRedemption}>
                   <input type="hidden" name="redemptionId" value={item.id} />
-                  <button className={btn("paper", "px-3 py-1.5")} type="submit">Refund</button>
+                  <button className={btn("paper", "px-3 py-1.5")} type="submit">Give back</button>
                 </form>
               ) : (
-                <span className="font-bold uppercase tracking-[0.12em]">Refunded</span>
+                <span className="font-bold uppercase tracking-[0.12em]">{item.status === "collected" ? "Bought" : "Refunded"}</span>
               )}
             </li>
           ))

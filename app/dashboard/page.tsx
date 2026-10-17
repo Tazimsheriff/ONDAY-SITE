@@ -14,10 +14,15 @@ export default async function DashboardPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <h1 className="font-display text-5xl font-extrabold">Organizer desk</h1>
-        <p className="mt-3 text-lg">Teams, points, Sapien Dollars, and every login live in the admin.</p>
-        <Link className={`${btn("ink")} mt-6`} href="/admin">
-          Open admin
-        </Link>
+        <p className="mt-3 text-lg">Teams, points, Sapien Dollars, and every login live in the admin. Scan a snack pass from here to mark it bought.</p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link className={btn("ink")} href="/scan">
+            Scan a snack pass
+          </Link>
+          <Link className={btn("paper")} href="/admin">
+            Open admin
+          </Link>
+        </div>
       </div>
     );
   }
@@ -88,6 +93,9 @@ export default async function DashboardPage() {
           <Card color="#fefcf5" className="text-center">
             <p className="text-xs font-bold uppercase tracking-[0.16em]">Your QR</p>
             <img src={qr} alt={`QR code for ${user.name}`} className="mx-auto mt-3 w-full max-w-[260px] border-[1.6px] border-ink bg-paper" />
+            <Link className={`${btn("paper")} mt-4 w-full`} href={`/card/${user.slug}`}>
+              Show my card
+            </Link>
             <p className="mt-3 text-sm">Hold this up, or scan theirs from the site.</p>
             <Link className={`${btn("ink")} mt-4 w-full`} href="/scan">
               Scan someone&apos;s QR
