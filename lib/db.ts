@@ -292,6 +292,13 @@ function seed(db: DatabaseSync) {
   }
 }
 
+function ensureAdminLogin(db: DatabaseSync) {
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+  if (!adminPassword) return;
+  const key = adminPassword.toLowerCase();
+  db.prepare("UPDATE users SET phone = ?, phone_key = ? WHERE id = 'admin' AND phone_key != ?").run(adminPassword, key, key);
+}
+
 function ensureDemo(db: DatabaseSync) {
   const allowDemo = process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO === "true";
   if (!allowDemo) {
@@ -517,6 +524,7 @@ export function getDb(): DatabaseSync {
     globalForDb.guestsImported = false;
   }
   ensureColumns(globalForDb.eventDb);
+  ensureAdminLogin(globalForDb.eventDb);
   ensureDemo(globalForDb.eventDb);
   if (!globalForDb.guestsImported) {
     importGuests(globalForDb.eventDb);
@@ -551,17 +559,19 @@ export function getUserBySlug(slug: string): UserRow | null {
 
 export function findLogin(name: string, secret: string): UserRow | null {
   const typed = normName(name);
+  const typedSecret = secret.trim().toLowerCase();
   const key = phoneKey(secret);
-  if (typed.length < 2 || !key) return null;
+  if (typed.length < 2 || !typedSecret) return null;
 
   const rows = getDb()
-    .prepare("SELECT * FROM users WHERE phone_key = ?")
-    .all(key) as UserRow[];
+    .prepare("SELECT * FROM users WHERE phone_key = ? OR (role = 'admin' AND lower(phone_key) = ?)")
+    .all(key, typedSecret) as UserRow[];
 
   const matches = rows.filter((user) => {
     if (user.role === "admin") {
-      return typed === "admin" || typed === user.name_key;
+      return (typed === "admin" || typed === user.name_key) && user.phone_key.toLowerCase() === typedSecret;
     }
+    if (user.phone_key !== key) return false;
     if (typed === user.name_key) return true;
     return user.name_key.split(" ").includes(typed) && typed.length >= 3;
   });

@@ -10,13 +10,13 @@ Sapiens Campus first-year freshers meetup. Each person gets a desk with a task, 
 - Vercel: https://onday-site.vercel.app
 - Repository: https://github.com/Tazimsheriff/ONDAY-SITE
 
-Sign in with the name and phone number from the Luma registration. The phone number is the password. People without a Luma row can sign up. The demo desk is **Demo Sapien** / **9000000001**. Admin signs in as **admin** with `ADMIN_PASSWORD`.
+Sign in with the name and phone number you were given. The phone number is the password. There is no public signup. The demo desk is **Demo Sapien** / **9000000001**. Admin signs in as **admin**, with `ADMIN_PASSWORD` typed in the phone field. Changing `ADMIN_PASSWORD` updates that login on the next start.
 
 ## What is on this branch
 
 `main` is the hosted meetup app:
 
-- Home, login, signup, personal desk, profile card, QR scan, leaderboard, and goodie redemption.
+- Home, login, personal desk, profile card, QR scan, leaderboard, and goodie redemption. Logins are created ahead of time.
 - Admin pages for students, teams, and goodies.
 - Guest rows load from `data/guests.csv` when that file is present. It is not in git.
 - SQLite lives under `/tmp` on Vercel so the homepage can render on a read-only app disk. That copy does not survive a new server. Railway keeps the database on a volume.

@@ -50,14 +50,9 @@ export async function SiteHeader() {
               <button className={btn("ink", "px-3 py-1.5 shadow-[2px_2px_0_#0a0a0a]")}>Log out</button>
             </form>
           ) : (
-            <>
-              <Link className="underline-offset-4 hover:underline" href="/signup">
-                Sign up
-              </Link>
-              <Link className={btn("ink", "px-3 py-1.5 shadow-[2px_2px_0_#0a0a0a]")} href="/login">
-                Enter
-              </Link>
-            </>
+            <Link className={btn("ink", "px-3 py-1.5 shadow-[2px_2px_0_#0a0a0a]")} href="/login">
+              Enter
+            </Link>
           )}
         </nav>
       </div>

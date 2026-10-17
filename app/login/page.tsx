@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Flash, btn } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
@@ -24,7 +23,7 @@ export default async function LoginPage({
           Come on in.
         </h1>
         <p className="mt-4 max-w-md text-lg leading-relaxed">
-          Use the name and phone number from your Luma registration. The phone number is the password.
+          Use the name and phone number you were given. The phone number is the password.
         </p>
       </div>
       <form action="/api/login" method="post" className="border-[1.6px] border-ink bg-paper p-6 shadow-[6px_6px_0_#0a0a0a] sm:p-8">
@@ -40,19 +39,15 @@ export default async function LoginPage({
         <input
           id="phone"
           name="phone"
-          inputMode="tel"
-          autoComplete="tel"
+          autoComplete="off"
           required
           className="field mt-2"
-          placeholder="Your Luma phone number"
+          placeholder="Phone number you were given"
         />
         <button className={`${btn("ink")} mt-5 w-full`} type="submit">
           Open my desk
         </button>
         <p className="mt-4 text-sm">
-          No Luma registration? <Link className="font-bold underline" href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}>Sign up.</Link>
-        </p>
-        <p className="mt-2 text-sm">
           Demo desk: name <span className="font-bold">Demo Sapien</span>, phone <span className="font-bold">9000000001</span>.
         </p>
       </form>

@@ -38,31 +38,6 @@ export async function logout() {
   redirect("/");
 }
 
-export async function signup(formData: FormData) {
-  const name = cleanName(String(formData.get("name") || ""));
-  const phone = String(formData.get("phone") || "");
-  const college = clampText(String(formData.get("college") || ""), 120);
-  const key = phoneKey(phone);
-  if (name.length < 2 || !/^\d{10}$/.test(key)) redirect("/signup?error=invalid");
-
-  const existing = getDb().prepare("SELECT id FROM users WHERE phone_key = ?").get(key);
-  if (existing) redirect("/signup?error=duplicate");
-
-  const id = `signup-${randomUUID().slice(0, 8)}`;
-  getDb()
-    .prepare(
-      `INSERT INTO users (
-        id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
-        role, points, dollars, team_id, task, secret_task, linkedin, instagram, github,
-        portfolio, bio, slug, approval_status, heard_from, signals, created_at
-      ) VALUES (?, NULL, ?, ?, '', ?, ?, ?, '', 'Student', 'user', 0, 0, NULL, '', '', '', '', '', '', '', ?, 'signed-up', '', '[]', ?)`,
-    )
-    .run(id, name, normName(name), phone.trim(), key, college, id, new Date().toISOString());
-
-  await setSession(id);
-  redirect(safeReturn(formData.get("next"), "") || "/dashboard");
-}
-
 export async function updateProfile(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "user") redirect("/admin");

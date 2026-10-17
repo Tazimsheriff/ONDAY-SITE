@@ -101,8 +101,6 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
         <p className="mt-6 text-center text-sm">
           Log in so this scan becomes a connection.{" "}
           <Link className="font-bold underline" href={`/login?next=${encodeURIComponent(returnTo)}`}>Enter</Link>
-          {" · "}
-          <Link className="font-bold underline" href={`/signup?next=${encodeURIComponent(returnTo)}`}>Sign up</Link>
         </p>
       ) : null}
     </div>
