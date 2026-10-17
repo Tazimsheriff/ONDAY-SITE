@@ -36,6 +36,7 @@ export type UserRow = {
   stall_one: string;
   stall_two: string;
   stall_picked_at: string;
+  stall_confirmed: number;
   approval_status: string;
   heard_from: string;
   signals: string;
@@ -118,6 +119,7 @@ function createSchema(db: DatabaseSync) {
       stall_one TEXT NOT NULL DEFAULT '',
       stall_two TEXT NOT NULL DEFAULT '',
       stall_picked_at TEXT NOT NULL DEFAULT '',
+      stall_confirmed INTEGER NOT NULL DEFAULT 0,
       year TEXT NOT NULL DEFAULT '',
       occupation TEXT NOT NULL DEFAULT '',
       role TEXT NOT NULL DEFAULT 'user',
@@ -537,6 +539,10 @@ function ensureColumns(db: DatabaseSync) {
   }
   if (!columns.some((column) => column.name === "stall_picked_at")) {
     db.exec("ALTER TABLE users ADD COLUMN stall_picked_at TEXT NOT NULL DEFAULT ''");
+  }
+  if (!columns.some((column) => column.name === "stall_confirmed")) {
+    db.exec("ALTER TABLE users ADD COLUMN stall_confirmed INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE users SET stall_confirmed = 1 WHERE stall_one != ''");
   }
   const redemptionColumns = db.prepare("PRAGMA table_info(redemptions)").all() as { name: string }[];
   if (!redemptionColumns.some((column) => column.name === "quantity")) {

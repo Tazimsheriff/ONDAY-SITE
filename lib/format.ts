@@ -138,7 +138,8 @@ const FLASH: Record<string, string> = {
   points: "Team points updated.",
   secret: "Secret task saved.",
   goodie: "Goodie saved.",
-  stalls: "Your two stalls are saved.",
+  stalls: "Confirmed. Those two stalls are locked.",
+  locked: "That choice is already confirmed.",
   stall: "Pick two different stalls.",
 };
 

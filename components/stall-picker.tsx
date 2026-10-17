@@ -4,11 +4,22 @@ import { useState } from "react";
 import { saveStallPriorities } from "@/lib/actions";
 import type { AgendaMentor } from "@/lib/agenda";
 
-export function StallPicker({ mentors, first, second }: { mentors: AgendaMentor[]; first: string; second: string }) {
+export function StallPicker({
+  mentors,
+  first,
+  second,
+  confirmed,
+}: {
+  mentors: AgendaMentor[];
+  first: string;
+  second: string;
+  confirmed: boolean;
+}) {
   const [one, setOne] = useState(first);
   const [two, setTwo] = useState(second === first ? "" : second);
 
   function pick(id: string) {
+    if (confirmed) return;
     if (id === one) {
       setOne(two);
       setTwo("");
@@ -22,13 +33,23 @@ export function StallPicker({ mentors, first, second }: { mentors: AgendaMentor[
     else setTwo(id);
   }
 
+  if (confirmed) {
+    return (
+      <div>
+        <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Your stalls</p>
+        <p className="mt-1 text-sm font-extrabold leading-relaxed">Confirmed. You can't change this.</p>
+        <MentorRail mentors={mentors} one={first} two={second} />
+      </div>
+    );
+  }
+
   return (
     <form action={saveStallPriorities}>
       <input type="hidden" name="stallOne" value={one} />
       <input type="hidden" name="stallTwo" value={two} />
       <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Your stalls</p>
       <p className="mt-1 text-sm leading-relaxed">
-        Tap one for 1st and another for 2nd. Tap a chosen stall to clear it. On a phone, two show at once and the next one peeks in. Swipe sideways for the rest.
+        Tap one for 1st and another for 2nd. Confirm locks it. You can't change it after that. On a phone, two show at once and the next one peeks in.
       </p>
       <MentorRail mentors={mentors} one={one} two={two} onPick={pick} />
       <button
@@ -36,7 +57,7 @@ export function StallPicker({ mentors, first, second }: { mentors: AgendaMentor[
         disabled={!one || !two}
         className="mt-4 border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c] disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Save my stalls
+        Confirm selection
       </button>
     </form>
   );

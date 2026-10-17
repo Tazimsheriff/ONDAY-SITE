@@ -33,6 +33,7 @@ export function AgendaBoard({
   role,
   first,
   second,
+  confirmed,
   counts,
   banner,
 }: {
@@ -40,6 +41,7 @@ export function AgendaBoard({
   role: "user" | "admin" | null;
   first: string;
   second: string;
+  confirmed: boolean;
   counts: StallCount[];
   banner: string | null;
 }) {
@@ -119,6 +121,7 @@ export function AgendaBoard({
             role={role}
             first={first}
             second={second}
+            confirmed={confirmed}
           />
         ))}
       </ol>
@@ -132,6 +135,7 @@ export function AgendaBoard({
         role={role}
         first={first}
         second={second}
+        confirmed={confirmed}
         counts={counts}
       />
     </div>
@@ -146,6 +150,7 @@ function SessionRow({
   role,
   first,
   second,
+  confirmed,
 }: {
   session: AgendaSession;
   state: SessionState;
@@ -154,6 +159,7 @@ function SessionRow({
   role: "user" | "admin" | null;
   first: string;
   second: string;
+  confirmed: boolean;
 }) {
   const lines = timeLines(session.start, session.end);
   const featured = session.id === "stalls";
@@ -200,7 +206,7 @@ function SessionRow({
             {role === "user" ? (
               <p className="mt-2 text-sm font-extrabold lg:text-lg">
                 {first && second
-                  ? `Your stalls: ${stallLabel(first)}, then ${stallLabel(second)}.`
+                  ? `Your stalls: ${stallLabel(first)}, then ${stallLabel(second)}.${confirmed ? " Confirmed." : ""}`
                   : "Open this and choose priority 1 and priority 2."}
               </p>
             ) : role === "admin" ? (
@@ -235,6 +241,7 @@ function SessionDialog({
   role,
   first,
   second,
+  confirmed,
   counts,
 }: {
   session: AgendaSession | null;
@@ -242,6 +249,7 @@ function SessionDialog({
   role: "user" | "admin" | null;
   first: string;
   second: string;
+  confirmed: boolean;
   counts: StallCount[];
 }) {
   useEffect(() => {
@@ -289,7 +297,7 @@ function SessionDialog({
         {session.mentors?.length ? (
           <div className="mt-4">
             {role === "user" ? (
-              <StallPicker mentors={session.mentors} first={first} second={second} />
+              <StallPicker mentors={session.mentors} first={first} second={second} confirmed={confirmed} />
             ) : (
               <>
                 {role === "admin" ? (

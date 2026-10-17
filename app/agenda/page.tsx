@@ -29,6 +29,7 @@ export default async function AgendaPage({
         role={user?.role === "admin" || user?.role === "user" ? user.role : null}
         first={user?.role === "user" ? user.stall_one : ""}
         second={user?.role === "user" ? user.stall_two : ""}
+        confirmed={user?.role === "user" ? Boolean(user.stall_confirmed) : false}
         counts={counts}
         banner={flashText(sp.notice) || flashText(sp.error)}
       />
