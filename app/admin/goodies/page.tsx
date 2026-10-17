@@ -56,7 +56,7 @@ export default async function GoodiesPage({
           redemptions.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
               <span>
-                <span className="font-bold">{item.user_name}</span> · {item.goodie_name} · S${item.cost}
+                <span className="font-bold">{item.user_name}</span> · {item.quantity > 1 ? `${item.quantity}× ` : ""}{item.goodie_name} · S${item.cost * (item.quantity || 1)}
               </span>
               {item.status === "claimed" ? (
                 <form action={refundRedemption}>

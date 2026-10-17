@@ -47,9 +47,9 @@ export default function AdminPage() {
               redemptions.map((item) => (
                 <li key={item.id} className="flex justify-between gap-3 py-2">
                   <span>
-                    <span className="font-bold">{item.user_name}</span> · {item.goodie_name}
+                    <span className="font-bold">{item.user_name}</span> · {item.quantity > 1 ? `${item.quantity}× ` : ""}{item.goodie_name}
                   </span>
-                  <span>{item.status === "refunded" ? "Refunded" : `S$${item.cost}`}</span>
+                  <span>{item.status === "refunded" ? "Refunded" : `S$${item.cost * (item.quantity || 1)}`}</span>
                 </li>
               ))
             ) : (

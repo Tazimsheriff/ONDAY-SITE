@@ -42,8 +42,17 @@ export default async function RedeemPage({
               <div className="mt-4 flex items-center justify-between gap-3">
                 <span className="font-display text-3xl font-extrabold">S${goodie.cost}</span>
                 {available ? (
-                  <form action={redeem}>
+                  <form action={redeem} className="flex items-center gap-2">
                     <input type="hidden" name="goodieId" value={goodie.id} />
+                    <input
+                      name="quantity"
+                      type="number"
+                      min={1}
+                      max={Math.min(100, goodie.stock)}
+                      defaultValue={1}
+                      aria-label={`How many ${goodie.name}`}
+                      className="field w-16"
+                    />
                     <button className={btn(affordable ? "ink" : "paper")} type="submit">
                       {affordable ? "Redeem" : "Too pricey"}
                     </button>
@@ -63,8 +72,8 @@ export default async function RedeemPage({
           <ul className="mt-4 divide-y-[1.6px] divide-ink border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
             {mine.map((item) => (
               <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span className="font-bold">{item.goodie_name}</span>
-                <span className="text-sm">S${item.cost} · show this at the counter</span>
+                <span className="font-bold">{item.quantity > 1 ? `${item.quantity}× ${item.goodie_name}` : item.goodie_name}</span>
+                <span className="text-sm">S${item.cost * (item.quantity || 1)} · show this at the counter</span>
               </li>
             ))}
           </ul>

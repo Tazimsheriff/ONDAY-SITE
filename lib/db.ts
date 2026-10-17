@@ -36,6 +36,7 @@ export type UserRow = {
   heard_from: string;
   signals: string;
   created_at: string;
+  session_version: number;
   team_name?: string | null;
   team_color?: string | null;
 };
@@ -67,6 +68,7 @@ export type RedemptionRow = {
   goodie_id: string;
   goodie_name: string;
   cost: number;
+  quantity: number;
   status: string;
   created_at: string;
   user_name?: string;
@@ -126,6 +128,7 @@ function createSchema(db: DatabaseSync) {
       heard_from TEXT NOT NULL DEFAULT '',
       signals TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
+      session_version INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
     );
 
@@ -144,6 +147,7 @@ function createSchema(db: DatabaseSync) {
       goodie_id TEXT NOT NULL,
       goodie_name TEXT NOT NULL,
       cost INTEGER NOT NULL,
+      quantity INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'claimed',
       created_at TEXT NOT NULL
     );
@@ -264,7 +268,12 @@ function seed(db: DatabaseSync) {
       insertGoodie.run(randomUUID(), name, description, cost, stock);
     }
 
-    const adminPassword = (process.env.ADMIN_PASSWORD || "campus101").trim();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+    if (!adminPassword) {
+      throw new Error(
+        "ADMIN_PASSWORD must be configured before initial seeding. Set the ADMIN_PASSWORD environment variable.",
+      );
+    }
     db.prepare(`
       INSERT INTO users (
         id, guest_id, name, name_key, email, phone, phone_key, college, year, occupation,
@@ -284,6 +293,11 @@ function seed(db: DatabaseSync) {
 }
 
 function ensureDemo(db: DatabaseSync) {
+  const allowDemo = process.env.NODE_ENV !== "production" || process.env.ENABLE_DEMO === "true";
+  if (!allowDemo) {
+    db.prepare("DELETE FROM users WHERE id = 'demo'").run();
+    return;
+  }
   const existing = db.prepare("SELECT id FROM users WHERE id = 'demo'").get();
   if (existing) return;
   const phone = "9000000001";
@@ -450,6 +464,13 @@ function ensureColumns(db: DatabaseSync) {
   const columns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!columns.some((column) => column.name === "discord")) {
     db.exec("ALTER TABLE users ADD COLUMN discord TEXT NOT NULL DEFAULT ''");
+  }
+  if (!columns.some((column) => column.name === "session_version")) {
+    db.exec("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0");
+  }
+  const redemptionColumns = db.prepare("PRAGMA table_info(redemptions)").all() as { name: string }[];
+  if (!redemptionColumns.some((column) => column.name === "quantity")) {
+    db.exec("ALTER TABLE redemptions ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
   }
   db.exec(`
     CREATE TABLE IF NOT EXISTS connections (

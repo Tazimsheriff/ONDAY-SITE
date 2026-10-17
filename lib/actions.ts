@@ -8,6 +8,7 @@ import {
   findLogin,
   getDb,
   getUserById,
+  recordConnection,
   writeLedger,
   type UserRow,
 } from "./db";
@@ -93,9 +94,10 @@ export async function redeem(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "user") redirect("/admin");
   const goodieId = String(formData.get("goodieId") || "");
+  const quantity = Math.min(100, Math.max(1, integer(formData.get("quantity"), 1)));
   const db = getDb();
   let failure: "stock" | "broke" | null = null;
-  let redeemed: { name: string; cost: number } | null = null;
+  let redeemed: { name: string; cost: number; quantity: number } | null = null;
 
   db.exec("BEGIN");
   try {
@@ -105,23 +107,24 @@ export async function redeem(formData: FormData) {
     const current = db.prepare("SELECT dollars FROM users WHERE id = ?").get(user.id) as
       | { dollars: number }
       | undefined;
+    const totalCost = goodie ? goodie.cost * quantity : 0;
 
-    if (!goodie || !current || goodie.stock < 1) failure = "stock";
-    else if (current.dollars < goodie.cost) failure = "broke";
+    if (!goodie || !current || goodie.stock < quantity) failure = "stock";
+    else if (current.dollars < totalCost) failure = "broke";
     else {
       const spent = db
         .prepare("UPDATE users SET dollars = dollars - ? WHERE id = ? AND dollars >= ?")
-        .run(goodie.cost, user.id, goodie.cost);
+        .run(totalCost, user.id, totalCost);
       const taken = db
-        .prepare("UPDATE goodies SET stock = stock - 1 WHERE id = ? AND stock > 0")
-        .run(goodie.id);
+        .prepare("UPDATE goodies SET stock = stock - ? WHERE id = ? AND stock >= ?")
+        .run(quantity, goodie.id, quantity);
       if (!spent.changes || !taken.changes) failure = "stock";
       else {
         db.prepare(
-          `INSERT INTO redemptions (id, user_id, goodie_id, goodie_name, cost, status, created_at)
-           VALUES (?, ?, ?, ?, ?, 'claimed', ?)`,
-        ).run(randomUUID(), user.id, goodie.id, goodie.name, goodie.cost, new Date().toISOString());
-        redeemed = { name: goodie.name, cost: goodie.cost };
+          `INSERT INTO redemptions (id, user_id, goodie_id, goodie_name, cost, quantity, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'claimed', ?)`,
+        ).run(randomUUID(), user.id, goodie.id, goodie.name, goodie.cost, quantity, new Date().toISOString());
+        redeemed = { name: goodie.name, cost: goodie.cost, quantity };
         db.exec("COMMIT");
       }
     }
@@ -139,8 +142,8 @@ export async function redeem(formData: FormData) {
   writeLedger({
     userId: user.id,
     kind: "dollars",
-    delta: -redeemed.cost,
-    note: `Redeemed ${redeemed.name}`,
+    delta: -redeemed.cost * redeemed.quantity,
+    note: `Redeemed ${redeemed.quantity}x ${redeemed.name}`,
     actorId: user.id,
   });
   touch();
@@ -154,15 +157,18 @@ export async function refundRedemption(formData: FormData) {
   const redemption = db
     .prepare("SELECT * FROM redemptions WHERE id = ?")
     .get(redemptionId) as
-    | { id: string; user_id: string; goodie_id: string; goodie_name: string; cost: number; status: string }
+    | { id: string; user_id: string; goodie_id: string; goodie_name: string; cost: number; quantity: number; status: string }
     | undefined;
 
   if (!redemption || redemption.status !== "claimed") redirect("/admin/goodies?error=missing");
 
+  const quantity = redemption.quantity || 1;
+  const refundAmount = redemption.cost * quantity;
+
   db.exec("BEGIN");
   try {
-    db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(redemption.cost, redemption.user_id);
-    db.prepare("UPDATE goodies SET stock = stock + 1 WHERE id = ?").run(redemption.goodie_id);
+    db.prepare("UPDATE users SET dollars = dollars + ? WHERE id = ?").run(refundAmount, redemption.user_id);
+    db.prepare("UPDATE goodies SET stock = stock + ? WHERE id = ?").run(quantity, redemption.goodie_id);
     db.prepare("UPDATE redemptions SET status = 'refunded' WHERE id = ?").run(redemption.id);
     db.exec("COMMIT");
   } catch (error) {
@@ -173,8 +179,8 @@ export async function refundRedemption(formData: FormData) {
   writeLedger({
     userId: redemption.user_id,
     kind: "dollars",
-    delta: redemption.cost,
-    note: `Refunded ${redemption.goodie_name}`,
+    delta: refundAmount,
+    note: `Refunded ${quantity}x ${redemption.goodie_name}`,
     actorId: admin.id,
   });
   touch();
@@ -473,4 +479,17 @@ export async function saveGoodie(formData: FormData) {
   }
   touch();
   redirect("/admin/goodies?notice=goodie");
+}
+
+export async function connectWithUser(formData: FormData) {
+  const user = await requireUser();
+  const targetId = String(formData.get("targetId") || "");
+  const returnTo = safeReturn(formData.get("returnTo"), "/");
+  if (user.role !== "user" || !targetId || targetId === user.id) redirect(returnTo);
+  const target = getUserById(targetId);
+  if (!target || target.role !== "user") redirect(returnTo);
+  recordConnection(user.id, targetId);
+  revalidatePath(returnTo);
+  revalidatePath("/dashboard");
+  redirect(returnTo);
 }

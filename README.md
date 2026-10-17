@@ -1,6 +1,6 @@
 # Class 101 — Out of Syllabus
 
-Sapiens Campus first-year freshers meetup. Each person gets a desk with a task, a secret task, a team, and Sapien Dollars. Scanning a card connects two people. Admins allot teams, award points, and run the goodie counter.
+Sapiens Campus first-year freshers meetup. Each person gets a desk with a task, a secret task, a team, and Sapien Dollars. Scanning a card opens it, and Connect adds that person to your account. Admins allot teams, award points, and run the goodie counter.
 
 [![Architecture diagram of tazimsheriff/onday-site](https://gitdiagram.com/tazimsheriff/onday-site/diagram.png)](https://gitdiagram.com/tazimsheriff/onday-site?utm_source=readme&utm_medium=picture)
 
@@ -29,4 +29,4 @@ copy .env.example .env.local
 npm run dev
 ```
 
-Set `SESSION_SECRET` and `ADMIN_PASSWORD` in `.env.local` before you rely on login. Open http://localhost:3000.
+Set `SESSION_SECRET` and `ADMIN_PASSWORD` in `.env.local` before you rely on login. A fresh database will not seed the admin until `ADMIN_PASSWORD` is set. In production, set `APP_ORIGIN` to the public https address so profile and desk QR codes resolve, and leave `ENABLE_DEMO` unset so the demo account is not created. Open http://localhost:3000.

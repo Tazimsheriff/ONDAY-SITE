@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Eyebrow, btn } from "@/components/ui";
+import { connectWithUser } from "@/lib/actions";
 import { getSessionUser } from "@/lib/auth";
-import { getUserBySlug, hasScanned, recordConnection } from "@/lib/db";
+import { getUserBySlug, hasScanned } from "@/lib/db";
 import { discordHandle, hrefFor, parseSignals, teamColor } from "@/lib/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
@@ -17,11 +18,7 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
   if (!user) notFound();
   const viewer = await getSessionUser();
   const mine = viewer?.id === user.id;
-  let repeat = false;
-  if (viewer && viewer.role === "user" && !mine) {
-    repeat = hasScanned(viewer.id, user.id);
-    if (!repeat) recordConnection(viewer.id, user.id);
-  }
+  const scanned = Boolean(viewer && viewer.role === "user" && !mine && hasScanned(viewer.id, user.id));
   const color = teamColor(user.team_color || "butter");
   const signals = parseSignals(user.signals);
   const links = [
@@ -46,17 +43,21 @@ export default async function CardPage({ params }: { params: Promise<{ slug: str
           <p className="mt-3 text-lg">{[user.college || "College not added", user.year].filter(Boolean).join(" · ")}</p>
           {user.bio ? <p className="mt-4 border-l-[3px] border-ink pl-3 leading-relaxed">{user.bio}</p> : null}
 
-          {repeat ? (
-            <p className="mt-4 border-[1.6px] border-ink bg-peach px-3 py-2 text-sm font-bold">
-              You already scanned {user.name}. The same card doesn&apos;t count again.
-            </p>
-          ) : viewer?.role === "user" && !mine ? (
+          {scanned ? (
             <p className="mt-4 border-[1.6px] border-ink bg-mint px-3 py-2 text-sm font-bold">
               You&apos;re connected with {user.name}. They&apos;re on your account.{" "}
               <Link className="underline" href="/dashboard">
                 See your desk
               </Link>
             </p>
+          ) : viewer?.role === "user" && !mine ? (
+            <form action={connectWithUser} className="mt-4">
+              <input type="hidden" name="targetId" value={user.id} />
+              <input type="hidden" name="returnTo" value={returnTo} />
+              <button className={btn("ink")} type="submit">
+                Connect with {user.name}
+              </button>
+            </form>
           ) : null}
 
           <div className="mt-6 grid gap-2">
