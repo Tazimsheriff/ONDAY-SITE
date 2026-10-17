@@ -17,8 +17,8 @@ export default async function LeaderboardPage() {
         Teams are ranked by marks: every member&apos;s points, plus any bonus the organizers add. Individuals are ranked by points alone.
       </p>
 
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
-        <section>
+      <div className="mt-8 grid min-w-0 gap-4 lg:grid-cols-2">
+        <section className="min-w-0">
           <h2 className="font-display text-3xl font-extrabold">Teams</h2>
           <ol className="mt-4 space-y-3">
             {board.teams.map((team) => {
@@ -31,7 +31,7 @@ export default async function LeaderboardPage() {
                   style={{ background: yours ? "#ffd966" : teamColor(team.color) }}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-xs font-bold uppercase tracking-[0.16em]">#{team.rank}{yours ? " · You" : ""}</p>
                       <h3 className="font-display text-3xl font-extrabold leading-none">{team.name}</h3>
                       {team.motto ? <p className="mt-1 text-sm">{team.motto}</p> : null}
@@ -52,7 +52,7 @@ export default async function LeaderboardPage() {
           </ol>
         </section>
 
-        <section>
+        <section className="min-w-0">
           <h2 className="font-display text-3xl font-extrabold">Sapiens</h2>
           <ol className="mt-4 border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
             {board.people.map((person) => {

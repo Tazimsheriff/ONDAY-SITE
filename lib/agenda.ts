@@ -107,6 +107,15 @@ export const AGENDA: AgendaSession[] = [
         topics: ["Mobile engineering"],
         linkedin: "",
       },
+      {
+        name: "Chandrasekar Jayapalan",
+        photo: "/mentors/chandrasekar.jpg",
+        role: "Founder, Namma Kuppai · Co-founder, Chennai Marketers & Founders",
+        about:
+          "Chennai-based marketer and go-to-market operator with about 12 years of experience. Founder of the civic-tech platform Namma Kuppai, co-founder of Chennai Marketers & Founders, and formerly Marketing Lead at Sensiple. His work covers product marketing, demand generation, brand campaigns, and sales enablement across B2B SaaS and consumer brands. He also runs 101 Inspiring People, a passion project with more than 150 interviews.",
+        topics: ["AI"],
+        linkedin: "",
+      },
     ],
     start: "2026-10-18T11:30:00+05:30",
     end: "2026-10-18T13:30:00+05:30",

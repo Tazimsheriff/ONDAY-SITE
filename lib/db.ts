@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type StatementSync } from "node:sqlite";
 import { cleanName, normName, phoneKey } from "./format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -90,6 +90,7 @@ export type LedgerRow = {
 function createSchema(db: DatabaseSync) {
   db.exec(`
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
     PRAGMA foreign_keys = ON;
 
     CREATE TABLE IF NOT EXISTS teams (
@@ -541,28 +542,93 @@ function openDb(): DatabaseSync {
   return db;
 }
 
+function connectionClosed(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /connection closed|database is not open/i.test(message);
+}
+
+function ready(db: DatabaseSync) {
+  ensureColumns(db);
+  ensureAdminLogin(db);
+  ensureDemo(db);
+  if (!globalForDb.guestsImported) {
+    importGuests(db);
+    globalForDb.guestsImported = true;
+  }
+}
+
+function reopenRaw(): DatabaseSync {
+  console.error("Reopening the event database");
+  try {
+    globalForDb.eventDb?.close();
+  } catch {
+    /* already closed */
+  }
+  globalForDb.guestsImported = false;
+  const db = openDb();
+  globalForDb.eventDb = db;
+  ready(db);
+  return db;
+}
+
+function guardStatement(statement: StatementSync, sql: string): StatementSync {
+  return new Proxy(statement, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value !== "function") return value;
+      return (...args: unknown[]) => {
+        try {
+          return value.apply(target, args);
+        } catch (error) {
+          if (!connectionClosed(error) || (prop !== "get" && prop !== "all" && prop !== "run")) throw error;
+          const fresh = reopenRaw().prepare(sql);
+          const method = Reflect.get(fresh, prop, fresh) as (...methodArgs: unknown[]) => unknown;
+          return method.apply(fresh, args);
+        }
+      };
+    },
+  }) as StatementSync;
+}
+
+function guard(db: DatabaseSync): DatabaseSync {
+  return new Proxy(db, {
+    get(target, prop, receiver) {
+      if (prop === "prepare") {
+        return (sql: string) => {
+          try {
+            return guardStatement(target.prepare(sql), sql);
+          } catch (error) {
+            if (!connectionClosed(error)) throw error;
+            return guardStatement(reopenRaw().prepare(sql), sql);
+          }
+        };
+      }
+      if (prop === "exec") {
+        return (sql: string) => {
+          try {
+            return target.exec(sql);
+          } catch (error) {
+            if (!connectionClosed(error)) throw error;
+            return reopenRaw().exec(sql);
+          }
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 export function getDb(): DatabaseSync {
   if (!globalForDb.eventDb) globalForDb.eventDb = openDb();
   try {
     globalForDb.eventDb.prepare("SELECT 1").get();
   } catch (error) {
-    console.error("Reopening the event database", error);
-    try {
-      globalForDb.eventDb.close();
-    } catch {
-      /* already closed */
-    }
-    globalForDb.eventDb = openDb();
-    globalForDb.guestsImported = false;
+    if (!connectionClosed(error)) throw error;
+    reopenRaw();
   }
-  ensureColumns(globalForDb.eventDb);
-  ensureAdminLogin(globalForDb.eventDb);
-  ensureDemo(globalForDb.eventDb);
-  if (!globalForDb.guestsImported) {
-    importGuests(globalForDb.eventDb);
-    globalForDb.guestsImported = true;
-  }
-  return globalForDb.eventDb;
+  ready(globalForDb.eventDb);
+  return guard(globalForDb.eventDb);
 }
 
 export function getUserById(id: string): UserRow | null {

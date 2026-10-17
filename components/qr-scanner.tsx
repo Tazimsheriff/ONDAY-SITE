@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 function slugFromScan(value: string): string | null {
@@ -23,8 +22,11 @@ function slugFromScan(value: string): string | null {
   return slug;
 }
 
+function openCard(slug: string) {
+  window.location.assign(`/card/${encodeURIComponent(slug)}`);
+}
+
 export function QrScanner() {
-  const router = useRouter();
   const handled = useRef(false);
   const [message, setMessage] = useState("Point the camera at their Class 101 QR.");
 
@@ -49,10 +51,7 @@ export function QrScanner() {
               return;
             }
             handled.current = true;
-            instance
-              .stop()
-              .catch(() => undefined)
-              .finally(() => router.push(`/card/${encodeURIComponent(slug)}`));
+            openCard(slug);
           },
           () => undefined,
         );
@@ -65,7 +64,7 @@ export function QrScanner() {
       cancel = true;
       scanner?.stop().catch(() => undefined);
     };
-  }, [router]);
+  }, []);
 
   async function onPhoto(file: File | undefined) {
     if (!file || handled.current) return;
@@ -79,7 +78,7 @@ export function QrScanner() {
         return;
       }
       handled.current = true;
-      router.push(`/card/${encodeURIComponent(slug)}`);
+      openCard(slug);
     } catch {
       setMessage("Couldn't read a QR in that photo.");
     } finally {
