@@ -21,6 +21,9 @@ export async function SiteHeader() {
           </span>
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-sm font-medium">
+          <Link className="underline-offset-4 hover:underline" href="/agenda">
+            Agenda
+          </Link>
           <Link className="underline-offset-4 hover:underline" href="/leaderboard">
             Board
           </Link>
