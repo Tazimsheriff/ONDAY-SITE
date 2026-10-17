@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { StallPicker } from "@/components/stall-picker";
+import { MentorRail, StallPicker } from "@/components/stall-picker";
 import {
   AGENDA,
   agendaHeadline,
@@ -11,7 +11,6 @@ import {
   nextSessionId,
   sessionState,
   stallLabel,
-  stallList,
   timeLines,
   type AgendaSession,
   type SessionState,
@@ -264,7 +263,7 @@ function SessionDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-title"
-        className="max-h-[85vh] w-full max-w-2xl overflow-auto rounded-[1.4rem] border-[2.5px] border-[#1c1c1c] bg-[#f6efe2] p-5 shadow-[8px_8px_0_#1c1c1c] sm:p-7"
+        className={`max-h-[85vh] w-full overflow-auto rounded-[1.4rem] border-[2.5px] border-[#1c1c1c] bg-[#f6efe2] p-5 shadow-[8px_8px_0_#1c1c1c] sm:p-7 ${session.mentors?.length ? "max-w-5xl" : "max-w-2xl"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -285,63 +284,29 @@ function SessionDialog({
             className="mt-4 max-h-80 w-full rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] object-contain"
           />
         ) : null}
-        {session.id === "stalls" ? (
-          <div className="mt-4">
-            {role === "user" ? (
-              <StallPicker stalls={stallList()} first={first} second={second} />
-            ) : role === "admin" ? (
-              <StallCounts counts={counts} />
-            ) : (
-              <Link
-                href="/login?next=/agenda"
-                className="inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
-              >
-                Sign in to choose your two stalls
-              </Link>
-            )}
-          </div>
-        ) : null}
         <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">What to expect</p>
         <p className="mt-2 text-base leading-relaxed">{session.expect}</p>
         {session.mentors?.length ? (
-          <div className="mt-5">
-            <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Stalls</p>
-            <ul className="mt-3 grid gap-3">
-              {session.mentors.map((mentor) => {
-                const mentorLinkedin = mentor.linkedin.startsWith("http") ? mentor.linkedin : "";
-                return (
-                  <li key={mentor.name} className="overflow-hidden rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-white">
-                    {mentor.photo ? (
-                      <img src={mentor.photo} alt="" className="max-h-[28rem] w-full bg-[#ffe34a] object-contain" />
-                    ) : null}
-                    <div className="p-4">
-                      <h3 className="font-display text-3xl font-extrabold leading-none">{mentor.name}</h3>
-                      {mentor.role ? <p className="mt-2 text-sm font-extrabold">{mentor.role}</p> : null}
-                      <p className="mt-3 text-sm leading-relaxed">{mentor.about}</p>
-                      {mentor.topics.length ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {mentor.topics.map((topic) => (
-                            <span key={topic} className="border-[2px] border-[#1c1c1c] bg-[#ffe34a] px-2.5 py-1 text-xs font-extrabold">
-                              {topic}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      {mentorLinkedin ? (
-                        <a
-                          className="mt-4 inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
-                          href={mentorLinkedin}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {mentor.name} on LinkedIn
-                        </a>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+          <div className="mt-4">
+            {role === "user" ? (
+              <StallPicker mentors={session.mentors} first={first} second={second} />
+            ) : (
+              <>
+                {role === "admin" ? (
+                  <StallCounts counts={counts} />
+                ) : (
+                  <Link
+                    href="/login?next=/agenda"
+                    className="inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+                  >
+                    Sign in to choose your two stalls
+                  </Link>
+                )}
+                <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">Stalls</p>
+                <p className="mt-1 text-sm">Swipe sideways. Two stalls show at once on a phone.</p>
+                <MentorRail mentors={session.mentors} />
+              </>
+            )}
           </div>
         ) : null}
         {linkedin ? (

@@ -86,7 +86,7 @@ export const AGENDA: AgendaSession[] = [
       {
         id: "pavithran",
         name: "Pavithran M",
-        photo: "/mentors/pavithran.png",
+        photo: "/mentors/pavithran.jpg",
         role: "SIH '25 Winner · IEEE SIGHT Recipient",
         about:
           "ECE student at Sri Sairam Engineering College, Chennai, graduating in 2027. Secretary of the college IEEE student branch, Chair of its IEEE Industrial Electronics Society chapter, and an IEEE Region 10 ambassador. He won Smart India Hackathon 2025 and represented his chapter in Brazil this August on an IEEE travel grant.",
@@ -96,7 +96,7 @@ export const AGENDA: AgendaSession[] = [
       {
         id: "usha",
         name: "Usha Jawaharlal",
-        photo: "",
+        photo: "/mentors/usha.jpg",
         role: "Data Scientist, YaaraLabs.ai",
         about:
           "Data Scientist at YaaraLabs.ai in Chennai, working on generative AI, LLMs, and agentic AI. She did her M.Sc. in Data Science at SASTRA with Distinction and recently spoke at the D3 Meetup.",
@@ -106,7 +106,7 @@ export const AGENDA: AgendaSession[] = [
       {
         id: "yogalakshmi",
         name: "Yogalakshmi Priya S T",
-        photo: "",
+        photo: "/mentors/yogalakshmi.jpg",
         role: "Principal Mobile Architect, Cognizant",
         about:
           "Principal Mobile Architect at Cognizant in Chennai, with about 15 years in Android, React Native, and React. She mentors engineers, leads RFPs as a solution architect, and is looking toward a Director of Engineering role. She stood out in the Naana Neeya AI debate at Google I/O Extended Chennai 2026, arguing for skills first and AI second.",
