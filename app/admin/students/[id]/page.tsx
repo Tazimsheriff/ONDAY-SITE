@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Flash, btn } from "@/components/ui";
 import { grantGoodie, refundRedemption, refundUserGoodies, saveStudent } from "@/lib/actions";
 import { getUserById, listGoodies, listLedger, listRedemptions, listTeams } from "@/lib/db";
+import { stallLabel } from "@/lib/agenda";
 import { formatPhone } from "@/lib/format";
 
 export const metadata = { title: "Edit Sapien" };
@@ -30,6 +31,11 @@ export default async function StudentEditPage({
       <h1 className="mt-3 font-display text-5xl font-extrabold tracking-tight">{user.name}</h1>
       <p className="mt-2 font-mono text-sm">Login password · {user.phone_key ? formatPhone(user.phone_key) : "No phone on file"}</p>
       <p className="mt-1 text-sm">{[user.email, user.college, user.year, user.approval_status].filter(Boolean).join(" · ")}</p>
+      <p className="mt-1 text-sm font-bold">
+        Stalls · {user.stall_one ? stallLabel(user.stall_one) : "No first choice"}
+        {" · "}
+        {user.stall_two ? stallLabel(user.stall_two) : "No second choice"}
+      </p>
       <div className="mt-4">
         <Flash error={flash.error} notice={flash.notice} />
       </div>

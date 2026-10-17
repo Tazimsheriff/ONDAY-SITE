@@ -14,15 +14,10 @@ export default async function DashboardPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <h1 className="font-display text-5xl font-extrabold">Organizer desk</h1>
-        <p className="mt-3 text-lg">Teams, points, Sapien Dollars, and every login live in the admin. Scan a snack pass from here to mark it bought.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link className={btn("ink")} href="/scan">
-            Scan a snack pass
-          </Link>
-          <Link className={btn("paper")} href="/admin">
-            Open admin
-          </Link>
-        </div>
+        <p className="mt-3 text-lg">Teams, points, Sapien Dollars, and every login live in the admin. Scan a snack pass from the Scan tab.</p>
+        <Link className={`${btn("ink")} mt-6`} href="/admin">
+          Open admin
+        </Link>
       </div>
     );
   }

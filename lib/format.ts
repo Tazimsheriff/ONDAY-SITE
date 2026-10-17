@@ -127,6 +127,7 @@ const FLASH: Record<string, string> = {
   invalid: "Need a name and a 10-digit phone number.",
   roster: "The CSV needs a header row with name and team columns, and at least one person selected when adding from the list.",
   refunded: "Goodie removed. Their dollars and the stock are back.",
+  cleared: "Claim history cleared. Passes that have not been scanned are still there.",
   returned: "Those goodies were returned. The dollars and the stock are back.",
   granted: "Goodie added. The cost came off their Sapien Dollars.",
   empty: "Nothing to return.",
@@ -137,6 +138,8 @@ const FLASH: Record<string, string> = {
   points: "Team points updated.",
   secret: "Secret task saved.",
   goodie: "Goodie saved.",
+  stalls: "Your two stalls are saved.",
+  stall: "Pick two different stalls.",
 };
 
 export function flashText(code?: string): string | null {

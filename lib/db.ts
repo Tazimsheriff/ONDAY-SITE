@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
-import { cleanName, normName, phoneKey } from "./format";
+import { cleanName, genderLabel, normName, phoneKey } from "./format";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -33,6 +33,8 @@ export type UserRow = {
   bio: string;
   slug: string;
   gender: string;
+  stall_one: string;
+  stall_two: string;
   approval_status: string;
   heard_from: string;
   signals: string;
@@ -112,6 +114,8 @@ function createSchema(db: DatabaseSync) {
       phone_key TEXT NOT NULL DEFAULT '',
       college TEXT NOT NULL DEFAULT '',
       gender TEXT NOT NULL DEFAULT '',
+      stall_one TEXT NOT NULL DEFAULT '',
+      stall_two TEXT NOT NULL DEFAULT '',
       year TEXT NOT NULL DEFAULT '',
       occupation TEXT NOT NULL DEFAULT '',
       role TEXT NOT NULL DEFAULT 'user',
@@ -523,6 +527,12 @@ function ensureColumns(db: DatabaseSync) {
   if (!columns.some((column) => column.name === "gender")) {
     db.exec("ALTER TABLE users ADD COLUMN gender TEXT NOT NULL DEFAULT ''");
   }
+  if (!columns.some((column) => column.name === "stall_one")) {
+    db.exec("ALTER TABLE users ADD COLUMN stall_one TEXT NOT NULL DEFAULT ''");
+  }
+  if (!columns.some((column) => column.name === "stall_two")) {
+    db.exec("ALTER TABLE users ADD COLUMN stall_two TEXT NOT NULL DEFAULT ''");
+  }
   const redemptionColumns = db.prepare("PRAGMA table_info(redemptions)").all() as { name: string }[];
   if (!redemptionColumns.some((column) => column.name === "quantity")) {
     db.exec("ALTER TABLE redemptions ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
@@ -536,6 +546,35 @@ function ensureColumns(db: DatabaseSync) {
       UNIQUE (scanner_id, owner_id)
     );
   `);
+}
+
+function importGenders(db: DatabaseSync) {
+  const csvPath = [path.join(process.cwd(), "gender-refresh.csv"), path.join(DATA_DIR, "gender-refresh.csv")].find((candidate) =>
+    fs.existsSync(candidate),
+  );
+  if (!csvPath) return;
+
+  const byGuest = db.prepare("SELECT id FROM users WHERE role = 'user' AND (guest_id = ? OR id = ?)");
+  const byName = db.prepare("SELECT id FROM users WHERE role = 'user' AND name_key = ?");
+  const update = db.prepare("UPDATE users SET gender = ? WHERE id = ?");
+  let updated = 0;
+  let missing = 0;
+  for (const row of parseCsv(fs.readFileSync(csvPath, "utf8"))) {
+    const gender = genderLabel(row.gender || "");
+    if (!gender) continue;
+    const guestId = (row.guest_id || "").trim();
+    const found = guestId ? (byGuest.get(guestId, guestId) as { id: string } | undefined) : undefined;
+    const named = found
+      ? [found]
+      : ((row.name ? byName.all(normName(row.name)) : []) as { id: string }[]);
+    if (named.length !== 1) {
+      missing += 1;
+      continue;
+    }
+    update.run(gender, named[0].id);
+    updated += 1;
+  }
+  console.log(`Genders: ${updated} updated, ${missing} not on this host.`);
 }
 
 function resolveDbPath(): string {
@@ -568,6 +607,7 @@ function ready(db: DatabaseSync) {
   ensureDemo(db);
   if (!globalForDb.guestsImported) {
     importGuests(db);
+    importGenders(db);
     globalForDb.guestsImported = true;
   }
 }
@@ -710,6 +750,12 @@ export function findLogin(name: string, secret: string): UserRow | null {
   return [...resolved].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0];
 }
 
+export function listStallPicks(): { stall_one: string; stall_two: string }[] {
+  return getDb()
+    .prepare("SELECT stall_one, stall_two FROM users WHERE role = 'user' AND (stall_one != '' OR stall_two != '')")
+    .all() as { stall_one: string; stall_two: string }[];
+}
+
 export function listStudents(): UserRow[] {
   return getDb()
     .prepare(
@@ -809,6 +855,19 @@ export function getRedemption(id: string): (RedemptionRow & { college: string })
     )
     .get(id) as (RedemptionRow & { college: string }) | undefined;
   return row ?? null;
+}
+
+export function listScannedPeople(): { id: string; name: string; count: number }[] {
+  return getDb()
+    .prepare(
+      `SELECT u.id AS id, u.name AS name, COUNT(*) AS count
+       FROM redemptions r
+       JOIN users u ON u.id = r.user_id
+       WHERE r.status = 'collected'
+       GROUP BY u.id
+       ORDER BY MAX(r.created_at) DESC, u.name_key`,
+    )
+    .all() as { id: string; name: string; count: number }[];
 }
 
 export function listRedemptions(userId?: string): RedemptionRow[] {

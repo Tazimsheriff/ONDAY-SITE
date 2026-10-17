@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { StallPicker } from "@/components/stall-picker";
 import {
   AGENDA,
   agendaHeadline,
@@ -8,10 +10,14 @@ import {
   msUntilBoundary,
   nextSessionId,
   sessionState,
+  stallLabel,
+  stallList,
   timeLines,
   type AgendaSession,
   type SessionState,
 } from "@/lib/agenda";
+
+export type StallCount = { id: string; label: string; first: number; second: number };
 
 const DOT: Record<string, string> = {
   welcome: "#f0c400",
@@ -23,7 +29,21 @@ const DOT: Record<string, string> = {
   close: "#e2a30a",
 };
 
-export function AgendaBoard({ now }: { now: number }) {
+export function AgendaBoard({
+  now,
+  role,
+  first,
+  second,
+  counts,
+  banner,
+}: {
+  now: number;
+  role: "user" | "admin" | null;
+  first: string;
+  second: string;
+  counts: StallCount[];
+  banner: string | null;
+}) {
   const [clock, setClock] = useState(now);
 
   useEffect(() => {
@@ -79,6 +99,9 @@ export function AgendaBoard({ now }: { now: number }) {
       <p className="mt-3 text-center text-sm font-bold lg:text-xl">
         {finished ? headline.title : headline.label === "Happening now" ? `${headline.title} is on now. ${headline.detail}.` : `${headline.title} is up next. ${headline.detail}.`}
       </p>
+      {banner ? (
+        <p className="mx-auto mt-4 max-w-xl border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-3 text-center text-sm font-extrabold">{banner}</p>
+      ) : null}
 
       <h2 className="relative mt-8 inline-block font-display text-5xl font-extrabold uppercase tracking-tight sm:text-6xl lg:text-8xl">
         <span className="absolute inset-x-[-6%] bottom-[0.08em] top-[42%] -z-0 -rotate-1 rounded-[40%] bg-[#ffe34a]" />
@@ -88,14 +111,30 @@ export function AgendaBoard({ now }: { now: number }) {
       <ol className="relative mt-6">
         <span className="pointer-events-none absolute bottom-8 top-4 left-[calc(4.6rem+0.5rem+4px)] w-[3px] bg-[#1c1c1c] sm:left-[calc(7.1rem+0.75rem+6px)] lg:left-[calc(9.5rem+1rem+8px)]" />
         {AGENDA.map((session) => (
-          <SessionRow key={session.id} session={session} state={sessionState(session, clock, nextId)} clock={clock} onOpen={setOpenId} />
+          <SessionRow
+            key={session.id}
+            session={session}
+            state={sessionState(session, clock, nextId)}
+            clock={clock}
+            onOpen={setOpenId}
+            role={role}
+            first={first}
+            second={second}
+          />
         ))}
       </ol>
 
       <p className="mt-8 border-y-[3px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-3 text-center text-sm font-extrabold lg:py-5 lg:text-xl">
         A student-led community. Built by students, for students.
       </p>
-      <SessionDialog session={openSession} onClose={() => setOpenId(null)} />
+      <SessionDialog
+        session={openSession}
+        onClose={() => setOpenId(null)}
+        role={role}
+        first={first}
+        second={second}
+        counts={counts}
+      />
     </div>
   );
 }
@@ -105,11 +144,17 @@ function SessionRow({
   state,
   clock,
   onOpen,
+  role,
+  first,
+  second,
 }: {
   session: AgendaSession;
   state: SessionState;
   clock: number;
   onOpen: (id: string) => void;
+  role: "user" | "admin" | null;
+  first: string;
+  second: string;
 }) {
   const lines = timeLines(session.start, session.end);
   const featured = session.id === "stalls";
@@ -153,6 +198,17 @@ function SessionRow({
               <Mark state={state} minutes={live ? minutesLeft(session.end, clock) : 0} />
             </div>
             <p className="mt-2 text-sm leading-relaxed lg:mt-3 lg:text-xl">{session.detail}</p>
+            {role === "user" ? (
+              <p className="mt-2 text-sm font-extrabold lg:text-lg">
+                {first && second
+                  ? `Your stalls: ${stallLabel(first)}, then ${stallLabel(second)}.`
+                  : "Open this and choose priority 1 and priority 2."}
+              </p>
+            ) : role === "admin" ? (
+              <p className="mt-2 text-sm font-extrabold lg:text-lg">Open this to see who picked each stall.</p>
+            ) : (
+              <p className="mt-2 text-sm font-extrabold lg:text-lg">Sign in to choose priority 1 and priority 2.</p>
+            )}
           </div>
         ) : (
           <>
@@ -174,7 +230,21 @@ function SessionRow({
   );
 }
 
-function SessionDialog({ session, onClose }: { session: AgendaSession | null; onClose: () => void }) {
+function SessionDialog({
+  session,
+  onClose,
+  role,
+  first,
+  second,
+  counts,
+}: {
+  session: AgendaSession | null;
+  onClose: () => void;
+  role: "user" | "admin" | null;
+  first: string;
+  second: string;
+  counts: StallCount[];
+}) {
   useEffect(() => {
     if (!session) return;
     const onKey = (event: KeyboardEvent) => {
@@ -214,6 +284,22 @@ function SessionDialog({ session, onClose }: { session: AgendaSession | null; on
             alt={session.host || session.title}
             className="mt-4 max-h-80 w-full rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] object-contain"
           />
+        ) : null}
+        {session.id === "stalls" ? (
+          <div className="mt-4">
+            {role === "user" ? (
+              <StallPicker stalls={stallList()} first={first} second={second} />
+            ) : role === "admin" ? (
+              <StallCounts counts={counts} />
+            ) : (
+              <Link
+                href="/login?next=/agenda"
+                className="inline-flex border-[2.5px] border-[#1c1c1c] bg-[#ffe34a] px-4 py-2 text-sm font-extrabold shadow-[3px_3px_0_#1c1c1c]"
+              >
+                Sign in to choose your two stalls
+              </Link>
+            )}
+          </div>
         ) : null}
         <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.14em]">What to expect</p>
         <p className="mt-2 text-base leading-relaxed">{session.expect}</p>
@@ -269,6 +355,26 @@ function SessionDialog({ session, onClose }: { session: AgendaSession | null; on
           </a>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function StallCounts({ counts }: { counts: StallCount[] }) {
+  const people = counts.reduce((total, stall) => total + stall.first, 0);
+  return (
+    <div className="rounded-[1.1rem] border-[2.5px] border-[#1c1c1c] bg-white p-4">
+      <p className="text-xs font-extrabold uppercase tracking-[0.14em]">Who picked what</p>
+      <p className="mt-1 text-sm font-extrabold">{people} {people === 1 ? "person has" : "people have"} chosen.</p>
+      <ul className="mt-3 grid gap-2">
+        {counts.map((stall) => (
+          <li key={stall.id} className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-extrabold">{stall.label}</span>
+            <span className="shrink-0 font-bold">
+              {stall.first} first · {stall.second} second
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

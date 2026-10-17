@@ -1,5 +1,5 @@
 import { Flash, btn } from "@/components/ui";
-import { refundEveryGoodie, refundRedemption, saveGoodie } from "@/lib/actions";
+import { clearClaimHistory, refundEveryGoodie, refundRedemption, saveGoodie } from "@/lib/actions";
 import { listGoodies, listRedemptions } from "@/lib/db";
 
 export const metadata = { title: "Goodies" };
@@ -52,9 +52,14 @@ export default async function GoodiesPage({
 
       <div className="mt-10 flex flex-wrap items-end justify-between gap-3">
         <h2 className="font-display text-3xl font-extrabold">Claims</h2>
-        <form action={refundEveryGoodie}>
-          <button className={btn("yellow")} type="submit">Give back every pass that has not been scanned</button>
-        </form>
+        <div className="flex flex-wrap gap-2">
+          <form action={refundEveryGoodie}>
+            <button className={btn("yellow")} type="submit">Give back every pass that has not been scanned</button>
+          </form>
+          <form action={clearClaimHistory}>
+            <button className={btn("paper")} type="submit">Clear claim history</button>
+          </form>
+        </div>
       </div>
       <ul className="mt-3 divide-y-[1.6px] divide-ink border-[1.6px] border-ink bg-paper shadow-[4px_4px_0_#0a0a0a]">
         {redemptions.length ? (

@@ -1,4 +1,5 @@
 export type AgendaMentor = {
+  id: string;
   name: string;
   photo: string;
   role: string;
@@ -83,6 +84,7 @@ export const AGENDA: AgendaSession[] = [
       "Five mentors run stalls at the same time. You can move between them. Each stall is a different domain, so pick the questions you actually want answered.",
     mentors: [
       {
+        id: "pavithran",
         name: "Pavithran M",
         photo: "/mentors/pavithran.png",
         role: "SIH '25 Winner · IEEE SIGHT Recipient",
@@ -92,6 +94,7 @@ export const AGENDA: AgendaSession[] = [
         linkedin: "",
       },
       {
+        id: "usha",
         name: "Usha Jawaharlal",
         photo: "",
         role: "Data Scientist, YaaraLabs.ai",
@@ -101,6 +104,7 @@ export const AGENDA: AgendaSession[] = [
         linkedin: "",
       },
       {
+        id: "yogalakshmi",
         name: "Yogalakshmi Priya S T",
         photo: "",
         role: "Principal Mobile Architect, Cognizant",
@@ -110,6 +114,7 @@ export const AGENDA: AgendaSession[] = [
         linkedin: "",
       },
       {
+        id: "chandrasekar",
         name: "Chandrasekar Jayapalan",
         photo: "/mentors/chandrasekar.jpg",
         role: "Founder, Namma Kuppai · Co-founder, Chennai Marketers & Founders",
@@ -119,6 +124,7 @@ export const AGENDA: AgendaSession[] = [
         linkedin: "",
       },
       {
+        id: "musha",
         name: "Musha Ahamed R Y",
         photo: "/mentors/musha.png",
         role: "Indie founder, RedChecker",
@@ -142,6 +148,22 @@ export const AGENDA: AgendaSession[] = [
     end: "2026-10-18T14:00:00+05:30",
   },
 ];
+
+export type Stall = { id: string; name: string; topic: string };
+
+export function stallList(): Stall[] {
+  const session = AGENDA.find((item) => item.id === "stalls");
+  return (session?.mentors ?? []).map((mentor) => ({
+    id: mentor.id,
+    name: mentor.name,
+    topic: mentor.topics[0] || mentor.name,
+  }));
+}
+
+export function stallLabel(id: string): string {
+  const stall = stallList().find((item) => item.id === id);
+  return stall ? `${stall.topic} · ${stall.name}` : "";
+}
 
 const ZONE = "Asia/Kolkata";
 

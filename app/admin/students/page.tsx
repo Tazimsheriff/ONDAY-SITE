@@ -4,6 +4,7 @@ import { GenderSelect } from "@/components/gender-select";
 import { TeamSelect } from "@/components/team-select";
 import { addScore, bulkApply, createWalkIn, saveSecretTask } from "@/lib/actions";
 import { listStudents, listTeams } from "@/lib/db";
+import { stallLabel } from "@/lib/agenda";
 import { formatPhone } from "@/lib/format";
 
 export const metadata = { title: "Sapiens" };
@@ -138,6 +139,12 @@ export default async function StudentsPage({
                     {student.name}
                   </Link>
                   <p className="mt-1 max-w-[220px] text-xs">{[student.college, student.year].filter(Boolean).join(" · ")}</p>
+                  {student.stall_one ? (
+                    <p className="mt-1 max-w-[220px] text-xs font-bold">
+                      1 {stallLabel(student.stall_one)}
+                      {student.stall_two ? ` · 2 ${stallLabel(student.stall_two)}` : ""}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em]">{statusLabel(student.approval_status)}</p>
                 </td>
                 <td className="px-3 py-3">

@@ -14,6 +14,7 @@ import {
   writeLedger,
   type UserRow,
 } from "./db";
+import { stallList } from "./agenda";
 import { clampText, cleanName, genderLabel, integer, normName, phoneKey, safeReturn } from "./format";
 
 function touch() {
@@ -39,6 +40,20 @@ export async function login(formData: FormData) {
 export async function logout() {
   await clearSession();
   redirect("/");
+}
+
+export async function saveStallPriorities(formData: FormData) {
+  const user = await requireUser();
+  if (user.role !== "user") redirect("/agenda");
+  const one = String(formData.get("stallOne") || "");
+  const two = String(formData.get("stallTwo") || "");
+  const stalls = new Set(stallList().map((stall) => stall.id));
+  if (!stalls.has(one) || !stalls.has(two) || one === two) redirect("/agenda?error=stall");
+  getDb().prepare("UPDATE users SET stall_one = ?, stall_two = ? WHERE id = ?").run(one, two, user.id);
+  revalidatePath("/agenda");
+  revalidatePath("/admin/students");
+  revalidatePath(`/admin/students/${user.id}`);
+  redirect("/agenda?notice=stalls");
 }
 
 export async function updateProfile(formData: FormData) {
@@ -237,6 +252,13 @@ export async function refundUserGoodies(formData: FormData) {
   touch();
   revalidatePath(back);
   redirect(withFlash(back, "notice", "returned"));
+}
+
+export async function clearClaimHistory() {
+  await requireAdmin();
+  getDb().prepare("DELETE FROM redemptions WHERE status IN ('refunded', 'collected')").run();
+  touch();
+  redirect("/admin/goodies?notice=cleared");
 }
 
 export async function refundEveryGoodie() {
